@@ -124,7 +124,7 @@ class Scratch3WildCardsBlocks {
                     }
                 },
                 {
-                    opcode: 'buzzerOn',
+                    opcode: 'buzzerOnOff',
                     text: 'turn buzzer [ON_OFF]: [CONNECTOR_ID]',
                     blockType: BlockType.COMMAND,
                     arguments: {
@@ -183,20 +183,12 @@ class Scratch3WildCardsBlocks {
         // TODO get temp reading, should probably timeout if nothing is connected
     }
 
-    ledOn () {
+    ledOnOff () {
         // TODO send command to turn LED on
     }
 
-    ledOnOff () {
-        // TODO send command to turn LED off
-    }
-
-    buzzerOn () {
+    buzzerOnOff () {
         // TODO send command to turn buzzer on
-    }
-
-    buzzerOff () {
-        // TODO send command to turn buzzer off
     }
 
     setServoPosition () {
