@@ -6,6 +6,17 @@ const MathUtil = require('../../util/math-util');
 const Timer = require('../../util/timer');
 
 /**
+ * The instrument and drum sounds, loaded as static assets.
+ * @type {object}
+ */
+let assetData = {};
+try {
+    assetData = require('./manifest');
+} catch (e) {
+    // Non-webpack environment, don't worry about assets.
+}
+
+/**
  * Icon svg to be displayed at the left edge of each extension block, encoded as a data URI.
  * @type {string}
  */
@@ -31,13 +42,6 @@ class Scratch3MusicBlocks {
          * @type {Runtime}
          */
         this.runtime = runtime;
-
-        /**
-         * The current tempo in beats per minute. The tempo is a global property of the project,
-         * not a property of each sprite, so it is not stored in the MusicState object.
-         * @type {number}
-         */
-        this.tempo = 60;
 
         /**
          * The number of drum and instrument sounds currently being played simultaneously.
@@ -73,21 +77,20 @@ class Scratch3MusicBlocks {
     }
 
     /**
-     * Download and decode the full set of drum and instrument sounds, and
-     * store the audio buffers in arrays.
+     * Decode the full set of drum and instrument sounds, and store the audio buffers in arrays.
      */
     _loadAllSounds () {
         const loadingPromises = [];
         this.DRUM_INFO.forEach((drumInfo, index) => {
-            const fileName = `drums/${drumInfo.fileName}`;
-            const promise = this._loadSound(fileName, index, this._drumBuffers);
+            const filePath = `drums/${drumInfo.fileName}`;
+            const promise = this._storeSound(filePath, index, this._drumBuffers);
             loadingPromises.push(promise);
         });
         this.INSTRUMENT_INFO.forEach((instrumentInfo, instrumentIndex) => {
             this._instrumentBufferArrays[instrumentIndex] = [];
             instrumentInfo.samples.forEach((sample, noteIndex) => {
-                const fileName = `instruments/${instrumentInfo.dirName}/${sample}`;
-                const promise = this._loadSound(fileName, noteIndex, this._instrumentBufferArrays[instrumentIndex]);
+                const filePath = `instruments/${instrumentInfo.dirName}/${sample}`;
+                const promise = this._storeSound(filePath, noteIndex, this._instrumentBufferArrays[instrumentIndex]);
                 loadingPromises.push(promise);
             });
         });
@@ -97,35 +100,48 @@ class Scratch3MusicBlocks {
     }
 
     /**
-     * Download and decode a sound, and store the buffer in an array.
-     * @param {string} fileName - the audio file name.
+     * Decode a sound and store the buffer in an array.
+     * @param {string} filePath - the audio file name.
      * @param {number} index - the index at which to store the audio buffer.
      * @param {array} bufferArray - the array of buffers in which to store it.
-     * @return {Promise} - a promise which will resolve once the sound has loaded.
+     * @return {Promise} - a promise which will resolve once the sound has been stored.
      */
-    _loadSound (fileName, index, bufferArray) {
-        if (!this.runtime.storage) return;
+    _storeSound (filePath, index, bufferArray) {
+        const fullPath = `${filePath}.mp3`;
+
+        if (!assetData[fullPath]) return;
+
+        // The sound buffer has already been downloaded via the manifest file required above.
+        const soundBuffer = assetData[fullPath].buffer;
+
+        return this._decodeSound(soundBuffer).then(buffer => {
+            bufferArray[index] = buffer;
+        });
+    }
+
+    /**
+     * Decode a sound and return a promise with the audio buffer.
+     * @param  {ArrayBuffer} soundBuffer - a buffer containing the encoded audio.
+     * @return {Promise} - a promise which will resolve once the sound has decoded.
+     */
+    _decodeSound (soundBuffer) {
         if (!this.runtime.audioEngine) return;
         if (!this.runtime.audioEngine.audioContext) return;
-        return this.runtime.storage.load(this.runtime.storage.AssetType.Sound, fileName, 'mp3')
-            .then(soundAsset => {
-                const context = this.runtime.audioEngine.audioContext;
-                // Check for newer promise-based API
-                if (context.decodeAudioData.length === 1) {
-                    return context.decodeAudioData(soundAsset.data.buffer);
-                } else { // eslint-disable-line no-else-return
-                    // Fall back to callback API
-                    return new Promise((resolve, reject) =>
-                        context.decodeAudioData(soundAsset.data.buffer,
-                            buffer => resolve(buffer),
-                            error => reject(error)
-                        )
-                    );
-                }
-            })
-            .then(buffer => {
-                bufferArray[index] = buffer;
-            });
+
+        const context = this.runtime.audioEngine.audioContext;
+
+        // Check for newer promise-based API
+        if (context.decodeAudioData.length === 1) {
+            return context.decodeAudioData(soundBuffer);
+        } else { // eslint-disable-line no-else-return
+            // Fall back to callback API
+            return new Promise((resolve, reject) =>
+                context.decodeAudioData(soundBuffer,
+                    buffer => resolve(buffer),
+                    error => reject(error)
+                )
+            );
+        }
     }
 
     /**
@@ -441,7 +457,7 @@ class Scratch3MusicBlocks {
                     arguments: {
                         DRUM: {
                             type: ArgumentType.NUMBER,
-                            menu: 'drums',
+                            menu: 'DRUM',
                             defaultValue: 1
                         },
                         BEATS: {
@@ -483,7 +499,7 @@ class Scratch3MusicBlocks {
                     arguments: {
                         INSTRUMENT: {
                             type: ArgumentType.NUMBER,
-                            menu: 'instruments',
+                            menu: 'INSTRUMENT',
                             defaultValue: 1
                         }
                     }
@@ -517,8 +533,8 @@ class Scratch3MusicBlocks {
                 }
             ],
             menus: {
-                drums: this._buildMenu(this.DRUM_INFO),
-                instruments: this._buildMenu(this.INSTRUMENT_INFO)
+                DRUM: this._buildMenu(this.DRUM_INFO),
+                INSTRUMENT: this._buildMenu(this.INSTRUMENT_INFO)
             }
         };
     }
@@ -736,7 +752,7 @@ class Scratch3MusicBlocks {
      * @private
      */
     _beatsToSec (beats) {
-        return (60 / this.tempo) * beats;
+        return (60 / this.getTempo()) * beats;
     }
 
     /**
@@ -806,7 +822,7 @@ class Scratch3MusicBlocks {
      */
     changeTempo (args) {
         const change = Cast.toNumber(args.TEMPO);
-        const tempo = change + this.tempo;
+        const tempo = change + this.getTempo();
         this._updateTempo(tempo);
     }
 
@@ -817,7 +833,10 @@ class Scratch3MusicBlocks {
      */
     _updateTempo (tempo) {
         tempo = MathUtil.clamp(tempo, Scratch3MusicBlocks.TEMPO_RANGE.min, Scratch3MusicBlocks.TEMPO_RANGE.max);
-        this.tempo = tempo;
+        const stage = this.runtime.getTargetForStage();
+        if (stage) {
+            stage.tempo = tempo;
+        }
     }
 
     /**
@@ -825,7 +844,11 @@ class Scratch3MusicBlocks {
      * @return {number} - the current tempo, in beats per minute.
      */
     getTempo () {
-        return this.tempo;
+        const stage = this.runtime.getTargetForStage();
+        if (stage) {
+            return stage.tempo;
+        }
+        return 60;
     }
 }
 

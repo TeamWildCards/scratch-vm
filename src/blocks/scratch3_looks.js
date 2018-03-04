@@ -251,7 +251,12 @@ class Scratch3LooksBlocks {
 
     say (args, util) {
         // @TODO in 2.0 calling say/think resets the right/left bias of the bubble
-        this._updateBubble(util.target, 'say', String(args.MESSAGE));
+        let message = args.MESSAGE;
+        if (typeof message === 'number') {
+            message = message.toFixed(2);
+        }
+        message = String(message);
+        this.runtime.emit('SAY', util.target, 'say', message);
     }
 
     sayforsecs (args, util) {
@@ -327,7 +332,7 @@ class Scratch3LooksBlocks {
         }
         if (target === this.runtime.getTargetForStage()) {
             // Target is the stage - start hats.
-            const newName = target.sprite.costumes[target.currentCostume].name;
+            const newName = target.getCostumes()[target.currentCostume].name;
             return this.runtime.startHats('event_whenbackdropswitchesto', {
                 BACKDROP: newName
             });
@@ -437,7 +442,7 @@ class Scratch3LooksBlocks {
             return stage.currentCostume + 1;
         }
         // Else return name
-        return stage.sprite.costumes[stage.currentCostume].name;
+        return stage.getCostumes()[stage.currentCostume].name;
     }
 
     getCostumeNumberName (args, util) {
@@ -445,7 +450,7 @@ class Scratch3LooksBlocks {
             return util.target.currentCostume + 1;
         }
         // Else return name
-        return util.target.sprite.costumes[util.target.currentCostume].name;
+        return util.target.getCostumes()[util.target.currentCostume].name;
     }
 }
 
