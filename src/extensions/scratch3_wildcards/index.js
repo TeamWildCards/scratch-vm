@@ -20,6 +20,8 @@ var inputMode = "0";
 var outputMode = "1";
 var analogMode = "2";
 var pwmMode = "3";
+var servoMode = "4";
+var noModeSet = "10";
 
 
 /** TODO: Fix this to use DeviceManager/DeviceFinder/DeviceOpener. Need to work on Pymata_aio (pymata_iot)
@@ -345,10 +347,121 @@ const wcConnector = {
     D: 'Connector D'
 };
 
-class WilCardsPin {
+/**
+* Manage WC pins, connection status, and state
+*/
+class WildCardsPin {
+  /**
+   * Construct a WildCards pin instance.
+   * @param {WildCards} parent -Each pin wil belong to a WildCard Connector
+   * @param {int} pinNum - the pin number on its parent device.
+   */
+   constructor (parent, pinNum) {
+       /**
+        * The WildCards connector which owns this pin.
+        * @type {WildCards}
+        * @private
+        */
+       this._parent = parent;
 
-// Maybe we should roll all pin properties to here and create new objects for each pin in Wildcards class
+       /**
+        * The pin number on its parent device.
+        * @type {int}
+        * @private
+        */
+       this._pinNum = pinNum;
+
+       /**
+        * Does this pin have its pinmode set?
+        * @type {int}
+        * @private
+        */
+       this._pinMode = noModeSet;
+
+       /**
+        * TThe current state of the pin"
+        * @type {number}
+        * @private
+        */
+       this._state = 0;
+     }
+
+     /**
+      * @return {int} - The pin number on its parent device
+      */
+     get pinNum () {
+         return this._pinNum;
+     }
+
+     /**
+      * @param {int} value - True = pinmode set
+      */
+     set pinMode (value) {
+         this._pinMode = value;
+     }
+
+     /**
+      * @return {int} - The pin number on its parent device
+      */
+     get pinMode () {
+         return this._pinMode;
+     }
+
+     /**
+      * @return {number} - has the pinmode been set, True = pinmode set
+      */
+     set state (value) {
+         this._state = value;
+     }
+
+     /**
+      * @param {number} value - the pins new value 0 or 1.
+      */
+     get state () {
+         return this._state;
+     }
+
+     /**
+      * Set the Wildcards pin mode.
+      * @param {int} pinNum - a 24-bit RGB color in 0xRRGGBB format.
+      */
+     setPinMode (pinMode) {
+         var msg = JSON.stringify({"method": "set_pin_mode", "params": [this._pinNum, pinMode]});
+         console.log(msg);
+         this._pinMode = pinMode;
+         this.isSet = true;
+         this._parent._sendmessage(msg);
+     }
+
+     /**
+     * Configure a Wildcards connector for a servo
+     * Pymata uses this instead of set_pin_mode for servos
+     */
+     configureServo (min_pulse, max_pulse) {
+         var msg = JSON.stringify({"method": "servo_config", "params": [this._pinNum, min_pulse, max_pulse]});
+         console.log(msg);
+         this._pinMode = servoMode;
+         this.isSet = true;
+         this._parent._sendmessage(msg);
+     }
+     /**
+      * Set the Wildcards pin high or low.
+      * @param {int} rgb - a 24-bit RGB color in 0xRRGGBB format.
+      */
+     digitalWrite (highlow) {
+         var msg = JSON.stringify({"method": "digital_write", "params": [this._pinNum, highlow]});
+         console.log(msg);
+         this._parent._sendmessage(msg);
+     }
+
+     analogWrite (value) {
+         var msg = JSON.stringify({"method": "analog_write", "params": [this._pinNum, value]});
+         console.log(msg);
+         this._parent._sendmessage(msg);
+     }
+
 }
+
 
 /**
  * Manage communication with a WildCards device over a Device Manager client socket.
@@ -375,7 +488,34 @@ class WildCards {
          */
         this._socket = socket;
 
+        //***** Create all the WC Pins ******//
 
+        console.log("creating wildcards pins")
+
+        // On board pins for buttons
+
+        this._button1 = new WildCardsPin(this, 4);
+        this._button2 = new WildCardsPin(this, 16);
+
+        // On board pins for LEDs
+
+        this._led1 = new WildCardsPin(this, 6);
+        this._led2 = new WildCardsPin(this, 7);
+        this._led3 = new WildCardsPin(this, 8);
+        this._led4 = new WildCardsPin(this, 9);
+
+        //Boards mapped to connectors
+
+        //ConnectorA
+        this._pin3 = new WildCardsPin(this, 3);
+
+        //ConnectorB
+
+        //ConnectorC
+        this._pin5 = new WildCardsPin(this, 5);
+
+        //ConnectorD
+        this._pin10 = new WildCardsPin(this, 10);
 
         this._socket.onmessage = function (message) {
             //console.log('got message' + message.data);
@@ -439,14 +579,16 @@ class WildCards {
                         //    document.getElementById("ip2").value = out;
                             break;
                         case 3:
-                            this._setpin3(out);
+                        //    document.getElementById("ip11").value = out;
+                            this._pin3.state = out;
                             break;
                         case 4:
                         //    document.getElementById("ip4").value = out;
-                            this._setbutton1(out);
+                            this._button1.state = out;
                             break;
                         case 5:
-                            this._setpin5(out);
+                        //    document.getElementById("ip11").value = out;
+                            this._pin5.state = out;
                             break;
                         case 6:
                         //    document.getElementById("ip6").value = out;
@@ -461,7 +603,8 @@ class WildCards {
                         //    document.getElementById("ip9").value = out;
                             break;
                         case 10:
-                              this._setpin10(out);
+                        //    document.getElementById("ip11").value = out;
+                            this._pin10.state = out;
                             break;
                         case 11:
                         //    document.getElementById("ip11").value = out;
@@ -479,7 +622,7 @@ class WildCards {
                         //    document.getElementById("ip15").value = out;
                             break;
                         case 16:
-                            this._setbutton2(out);
+                            this._button2.state = out;
                         //    document.getElementById("ip16").value = out;
                             break;
                         case 17:
@@ -629,40 +772,14 @@ class WildCards {
             console.log("The socket has closed!");
         };
 
+        // Set pin modes for static board level buttons and LEDS
 
-
-        /**
-         * The most recently received value for each sensor.
-         * @type {Object.<string, number>}
-         * @private
-         */
-        this._sensors = {
-            button1: 0,
-            button2: 0,
-            pin3: 0,
-            pin5: 0,
-            pin10: 0,
-        };
-
-        /**
-         * Set up the WildCard board for LEDs as output and buttons as input
-         */
-
-        //Currently, Arduino pins 4 and 16 are buttons and will always be inputs. May change in the future with different versions
-        //of the board. May want to detect the board version or a custom firmata in the future? For now, hard coded...
-        this.setPinMode('4', inputMode);  //Button 1
-        this.setPinMode('16', inputMode); //Button 2
-        //this.setPinMode('3',inputMode); //test
-
-        //Arduino pins 6, 7, 8, and 9
-        this.setPinMode('6',outputMode)
-        this.setPinMode('7', outputMode); //LED 2
-        this.setPinMode('8', outputMode); //LED 3
-        this.setPinMode('9', outputMode); //LED 4
-
-        /*
-        * WildCard pin set status. True when pinmode has been set, False when it hasn't
-        */
+        this._button1.setPinMode(inputMode);
+        this._button2.setPinMode(inputMode);
+        this._led1.setPinMode(outputMode);
+        this._led2.setPinMode(outputMode);
+        this._led3.setPinMode(outputMode);
+        this._led4.setPinMode(outputMode);
 
         this._onSensorChanged = this._onSensorChanged.bind(this);
         //this._onDisconnect = this._onDisconnect.bind(this);
@@ -670,39 +787,11 @@ class WildCards {
         //this._connectEvents();
     }
 
-
-
     /**
      * Manually dispose of this object.
      */
     dispose () {
         this._disconnectEvents();
-    }
-
-    /**
-     * @return {number} - the latest value received for button2.
-     */
-    get button1 () {
-        return this._sensors.button1;
-    }
-
-    /**
-     * @return {number} - the latest value received for button2.
-     */
-    get button2 () {
-        return this._sensors.button2;
-    }
-
-    get pin3 () {
-        return this._sensors.pin3;
-    }
-
-    get pin5 () {
-        return this._sensors.pin5;
-    }
-
-    get pin10 () {
-        return this._sensors.pin10;
     }
 
     setConnectorPin (connector, mode) {
@@ -727,42 +816,6 @@ class WildCards {
                 // Do something?
         }
         return digital_pin;
-    }
-
-    /**
-     * Set the Wildcards pin mode.
-     * @param {int} rgb - a 24-bit RGB color in 0xRRGGBB format.
-     */
-    setPinMode (pinnum, pinmode) {
-        var msg = JSON.stringify({"method": "set_pin_mode", "params": [pinnum, pinmode]});
-        console.log(msg);
-        this._sendmessage(msg);
-    }
-
-    /**
-    * Configure a Wildcards connector for a servo
-    *
-    * Pymata uses this instead of set_pin_mode for servos
-    */
-    configureServo (pinnum, min_pulse, max_pulse) {
-        var msg = JSON.stringify({"method": "servo_config", "params": [pinnum, min_pulse, max_pulse]});
-        console.log(msg);
-        this._sendmessage(msg);
-    }
-    /**
-     * Set the Wildcards pin high or low.
-     * @param {int} rgb - a 24-bit RGB color in 0xRRGGBB format.
-     */
-    digitalWrite (pinnum, highlow) {
-        var msg = JSON.stringify({"method": "digital_write", "params": [pinnum, highlow]});
-        console.log(msg);
-        this._sendmessage(msg);
-    }
-
-    analogWrite (pinnum, value) {
-        var msg = JSON.stringify({"method": "analog_write", "params": [pinnum, value]});
-        console.log(msg);
-        this._sendmessage(msg);
     }
 
     /**
@@ -837,27 +890,6 @@ class WildCards {
 
         this._socket.send(message);
 
-    }
-
-    _setbutton1 (value) {
-        this._sensors.button1 = value;
-    }
-
-
-    _setbutton2 (value) {
-        this._sensors.button2 = value;
-    }
-
-    _setpin3 (value) {
-        this._sensors.pin3 = value;
-    }
-
-    _setpin5 (value) {
-        this._sensors.pin5 = value;
-    }
-
-    _setpin10 (value) {
-        this._sensors.pin10 = value;
     }
 }
 
@@ -1051,7 +1083,6 @@ class Scratch3WildCardsBlocks {
         }
         console.log("creating wildcards device")
         this._device = new WildCards(tempsocket);
-        console.log("creating wildcards device")
 ///TODO:    Get DeviceManager stuff working
 
         // const deviceManager = this.deviceManager;
@@ -1117,20 +1148,20 @@ class Scratch3WildCardsBlocks {
         case wcButton.B_1:
             switch (pressedreleased) {
                 case 'pressed':
-                    return ((this._device.button1 == '0') ? 1 : 0);
+                    return ((this._device._button1.state == '0') ? 1 : 0);
                     break;
                 case 'released':
-                    return ((this._device.button1 == '1') ? 1 : 0);
+                    return ((this._device._button1.state == '1') ? 1 : 0);
             };
             //return (this._device.button1);
             break;
         case wcButton.B_2:
             switch (pressedreleased) {
                 case 'pressed':
-                    return ((this._device.button2 == '0') ? 1 : 0);
+                    return ((this._device._button2.state == '0') ? 1 : 0);
                     break;
                 case 'released':
-                    return ((this._device.button2 == '1') ? 1 : 0);
+                    return ((this._device._button2.state == '1') ? 1 : 0);
             };
             break;
             //return (this._device.button2);
@@ -1139,7 +1170,7 @@ class Scratch3WildCardsBlocks {
         //case wcButton.B_1_OR_2:
         //    return (this._device.button1) || (this._device.button2);
         default:
-            return ((this._device.button1 = '0') ? 1 : 0);
+            return ((this._device._button1.state = '0') ? 1 : 0);
         //    return (this._device.button1) || (this._device.button2); ;
         }
     }
@@ -1151,9 +1182,7 @@ class Scratch3WildCardsBlocks {
      * @return {boolean} - true if sensor value is true.
      */
     isLight (args) {
-        var digital_pin = this._device.setConnectorPin(args.CONNECTOR_ID, inputMode);
-        console.log(digital_pin);
-        return this._isDigitalHigh(digital_pin);
+        return this._isDigitalHigh(args.CONNECTOR_ID);
     }
 
     /**
@@ -1163,24 +1192,34 @@ class Scratch3WildCardsBlocks {
      * @return {boolean} - true if sensor value is true.
      */
     whenLightSensed(args) {
-        var digital_pin = this._device.setConnectorPin(args.CONNECTOR_ID, inputMode);
-        console.log(digital_pin);
-        return this._isDigitalHigh(digital_pin);
+        return this._isDigitalHigh(args.CONNECTOR_ID);
     }
 
-    _isDigitalHigh (digital_pin) {
-      switch (digital_pin) {
-          case '3':
-              return ((this._device.pin3 == '1') ? 1 : 0);
-              break;
-          case '5':
-              return ((this._device.pin5 == '1') ? 1 : 0);
-              break;
-          case '10':
-              return ((this._device.pin10 == '1') ? 1 : 0);
-              break;
-          default:
-              // Do something?
+    _isDigitalHigh (connector) {
+        switch (connector) {
+            case wcConnector.A:
+                if (this._device._pin3.pinMode != inputMode) {
+                    this._device._pin3.setPinMode(inputMode);
+                }
+                return ((this._device._pin3.state == '1') ? 1 : 0);
+                break;
+
+            // TODO: add case for connector B
+
+            case wcConnector.C:
+                if (this._device._pin5.pinMode != inputMode) {
+                    this._device._pin5.setPinMode(inputMode);
+                }
+                return ((this._device._pin5.state == '1') ? 1 : 0);
+                break;
+            case wcConnector.D:
+                if (this._device._pin10.pinMode != inputMode) {
+                    this._device._pin10.setPinMode(inputMode);
+                }
+                return ((this._device._pin10.state == '1') ? 1 : 0);
+                break;
+            default:
+                //do nothing
         }
     }
 
@@ -1191,7 +1230,6 @@ class Scratch3WildCardsBlocks {
     /**
      * Set the WildCards LEDs on or off
      * @param {object} args - the block's arguments.
-     * @property {number} HUE - the LED number to turn on or off.
      * @property
     */
 
@@ -1200,23 +1238,12 @@ class Scratch3WildCardsBlocks {
         const onoff  = args.ON_OFF
         var pinnumber = 13
         var pinhighlow = 1
-        console.log(lednumber)
-        console.log(args.LED_ID)
-        console.log(onoff)
-        console.log(args.ON_OFF)
-        switch (lednumber) {
-            case wcLED.LED_1:
-                pinnumber = '6';
-                break;
-            case wcLED.LED_2:
-                pinnumber = '7';
-                break;
-            case wcLED.LED_3:
-                pinnumber = '8';
-                break;
-            case wcLED.LED_4:
-                pinnumber = '9';
-        };
+
+        //console.log(lednumber)
+        //console.log(args.LED_ID)
+        //console.log(onoff)
+        //console.log(args.ON_OFF)
+
         switch (onoff) {
             case 'On':
                 pinhighlow = '1';
@@ -1225,54 +1252,69 @@ class Scratch3WildCardsBlocks {
                 pinhighlow = '0';
         };
 
-        console.log(onoff);
-        console.log(pinhighlow);
-        this._device.setPinMode(pinnumber, outputMode);
-        this._device.digitalWrite(pinnumber, pinhighlow);
+        switch (lednumber) {
+            case wcLED.LED_1:
+                this._device._led1.digitalWrite(pinhighlow);
+                break;
+            case wcLED.LED_2:
+                this._device._led2.digitalWrite(pinhighlow);
+                break;
+            case wcLED.LED_3:
+                this._device._led3.digitalWrite(pinhighlow);
+                break;
+            case wcLED.LED_4:
+                this._device._led4.digitalWrite(pinhighlow);
+            default:
+                //do nothing
+        };
+
+
+        //console.log(onoff);
+        //console.log(pinhighlow);
+        //this._device.setPinMode(pinnumber, outputMode);
+        //this._device.digitalWrite(pinnumber, pinhighlow);
     }
 
     setServoPosition (args) {
         const connector = args.CONNECTOR_ID
         const direction  = args.DIRECTION + 4
-        var pinnumber = 0
         var maxpulse = 360
         var minpulse = 4
 
-        console.log(connector)
-        console.log(args.CONNECTOR_ID)
-        console.log(direction)
-        console.log(args.DIRECTION)
+        //console.log(connector)
+        //console.log(args.CONNECTOR_ID)
+        //console.log(direction)
+        //console.log(args.DIRECTION)
 
         switch (connector) {
             case wcConnector.A:
-                pinnumber = '3';
+                if (this._device._pin3.pinMode != servoMode) {
+                    this._device._pin3.configureServo(minpulse, maxpulse);
+                }
+                this._device._pin3.analogWrite(direction);
                 break;
             case wcConnector.C:
-                pinnumber = '5';
+                if (this._device._pin5.pinMode != servoMode) {
+                    this._device._pin5.configureServo(minpulse, maxpulse);
+                }
+                this._device._pin5.analogWrite(direction);
                 break;
             case wcConnector.D:
-                pinnumber = '10';
+                if (this._device._pin10.pinMode != servoMode) {
+                    this._device._pin10.configureServo(minpulse, maxpulse);
+                }
+                this._device._pin10.analogWrite(direction);
+                break;
+            default:
+                //do nothing
         };
-        console.log(pinnumber)
-        this._device.configureServo(pinnumber, minpulse, maxpulse);
-        this._device.analogWrite(pinnumber, direction);
     }
 
     buzzerOnOff (args) {
       const connector = args.CONNECTOR_ID
       const onoff  = args.ON_OFF
-      var pinnumber = 0
       var pinhighlow = 1
-      switch (connector) {
-          case wcConnector.A:
-              pinnumber = '3';
-              break;
-          case wcConnector.C:
-              pinnumber = '5';
-              break;
-          case wcConnector.D:
-              pinnumber = '10';
-      };
+
       switch (onoff) {
           case 'On':
               pinhighlow = '1';
@@ -1280,11 +1322,36 @@ class Scratch3WildCardsBlocks {
           case 'Off':
               pinhighlow = '0';
       };
-      console.log(pinnumber)
-      this._device.setPinMode(pinnumber, outputMode);
-      this._device.digitalWrite(pinnumber, pinhighlow);
+
+      this._writeDigital(connector,pinhighlow);
     }
 
+    _writeDigital(connector, pinhighlow) {
+
+      switch (connector) {
+          case wcConnector.A:
+              if (this._device._pin3.pinMode != outputMode) {
+                  this._device._pin3.setPinMode(outputMode);
+              }
+              this._device._pin3.digitalWrite(pinhighlow);
+              break;
+          case wcConnector.C:
+              if (this._device._pin5.pinMode != outputMode) {
+                  this._device._pin5.setPinMode(outputMode);
+              }
+              this._device._pin5.digitalWrite(pinhighlow);
+              break;
+          case wcConnector.D:
+              if (this._device._pin10.pinMode != outputMode) {
+                  this._device._pin10.setPinMode(outputMode);
+              }
+              this._device._pin10.digitalWrite(pinhighlow);
+              break;
+          default:
+              //do nothing
+      };
+
+    }
 }
 
 module.exports = Scratch3WildCardsBlocks;
