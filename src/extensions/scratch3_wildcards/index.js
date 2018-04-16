@@ -21,7 +21,7 @@ var outputMode = "1";
 var analogMode = "2";
 var pwmMode = "3";
 var servoMode = "4";
-// var noModeSet = "10";
+var noModeSet = "10";  //TODO: investigate pymata/firmata behavior in this mode, although it important to note that we should never send this mode over
 
 
 /** TODO: Fix this to use DeviceManager/DeviceFinder/DeviceOpener. Need to work on Pymata_aio (pymata_iot)
@@ -346,8 +346,8 @@ const wcConnector = {
 };
 
 const wcPin = {
-    wcPin1: 'Pin1',
-    wcPin2: 'Pin2',
+    pin1: 'Pin1',
+    pin2: 'Pin2',
 };
 
 /**
@@ -356,14 +356,15 @@ const wcPin = {
 class WildCardsPin {
   /**
    * Construct a WildCards pin instance.
-   * @param {WildCards} parent - the connector to which this pin belongs
+   * @param {WildConnector} parent - the connector to which this pin belongs
    * @param {int} pinNum - the Arduino-equivalent pin number
    * @param {wcPin} wcpinNum - the WildCards connector pin number (wcPin1 or wcPin2), ignored for non-connector pins
    */
-    constructor (parent, pinNum, wcpinNum = wcPin1) {
+    constructor (parent, pinNum, wcpinNum = wcPin.pin1) {
         this._parent = parent;
         this._wcpinNum = wcpinNum;
         this._pinNum = pinNum;
+        console.log("Created pin " + this._pinNum + " on connector " + this._parent._connector)
         //pinNum is used for Digital Read/Writes and Analog Writes (PWM), but for Analog Reads, a different
         //pin numbering scheme is used (mapping to ADC0, ADC1, etc. for Arduinos)
         switch (pinNum) {
@@ -372,7 +373,7 @@ class WildCardsPin {
             break;
         case 24:  //maps to Arduino pin 24, and WildCards connector D pin 2
             this._pinNumAnalogInput = 1;
-            break;
+            break;n
         case 25:  //maps to Arduino pin 25
             //this analog input is not connected for WildCards
             this._pinNumAnalogInput = 2;
@@ -391,8 +392,8 @@ class WildCardsPin {
             break;
         }
 
-       //Default pin mode to input
-        this._pinMode = inputMode;
+       //Default pin mode to noModeSet so it forces every pin to send pymata method at least once
+        this._pinMode = noModeSet;
 
        //Default pin value to 0
         this._state = 0;
@@ -411,7 +412,7 @@ class WildCardsPin {
      * @param {int} newPinMode - the pinmode to set
      */
     set pinMode (newPinMode) {
-        setPinMode(newPinMode);
+        this._setPinMode(newPinMode);
     }
 
     /**
@@ -445,11 +446,11 @@ class WildCardsPin {
     setPinMode (pinMode) {
         if (this._pinMode == pinMode) {
             //nothing to do, we're already set to the correct mode
-            console.log("pin " + this._pinNum + " already set to " + this._pinMode);
+            //console.log("pin " + this._pinNum + " already set to " + this._pinMode);
         }
         else {
             if (pinMode == servoMode) {
-                configureServo ()
+                this.configureServo (this._min_pulse, this._max_pulse)
             }
             else {
                 var msg = JSON.stringify({"method": "set_pin_mode", "params": [this._pinNum, pinMode]});
@@ -458,18 +459,19 @@ class WildCardsPin {
                 this._parent._sendmessage(msg);
             }
         }
+    }
 
     /**
      * Update the Wildcards pin mode. Can be used to recover from a disconnect, for example.
      */
     refreshPinMode () {
         if (this._pinMode == servoMode) {
-            configureServo(this._min_pulse, this._max_pulse);
+            this.onfigureServo(this._min_pulse, this._max_pulse);
         }
         else {
-            var msg = JSON.stringify({"method": "set_pin_mode", "params": [this._pinNum, pinMode]});
+            var msg = JSON.stringify({"method": "set_pin_mode", "params": [this._pinNum, this._pinMode]});
             console.log(msg);
-            this._pinMode = pinMode;
+            this._pinMode = this._pinMode;
             this._parent._sendmessage(msg);
         }
     }
@@ -510,12 +512,21 @@ class WildCardsPin {
     }
 
     /**
-     * Read an analog value from a pin
+     * Read an analog value from a pymata, retransmit to wildmodules.
      * @param {number} value - analog value of the pin to read TODO: add range/mapping in
      */
     analog_message_reply (value) {
-        this._state = value
-        this._parent.wildModule()
+        this._state = value;
+        //this._parent.wildModule().analog_message_reply(this._pinNum, value);
+    }
+
+    /**
+     * Read an digital value from a pymata, retransmit to wildmodules.
+     * @param {number} value - state of pin, 1 = high 0 = low
+     */
+    digital_message_reply (value) {
+        this.state = value;
+        //this._parent.wildModule().digital_message_reply(this._pinNum, value);
     }
 
 }
@@ -533,10 +544,10 @@ class WildConnector {
     constructor(parent, connector, pin1, pin2) {
         this._parent = parent;
         this._connector = connector;
-        thisWildConnector = this;
-        this._pin1 = new WildCardsPin(thisWildConnector, pin1, wcPin1);
-        this._pin2 = new WildCardsPin(thisWildConnector, pin2, wcPin2);
-        this._wildModule = new WildModule(thisWildConnector);
+        //thisWildConnector = this;   //JS isnt liking this for some reason.
+        this._pin1 = new WildCardsPin(this, pin1, wcPin.pin1);
+        this._pin2 = new WildCardsPin(this, pin2, wcPin.pin2);
+        this._wildModule = new WildModule(this._connector);
     }
 
     get connector () {
@@ -561,7 +572,7 @@ class WildConnector {
 
     _sendmessage (message) {
 
-        this._parent.sendmessage(message);
+        this._parent._sendmessage(message);
 
     }
 
@@ -602,13 +613,13 @@ class WildModule {
 }
 
 class ServoModule extends WildModule {
-    constructor(connector) {}
+    constructor(connector) {
         super(connector);
     }
 }
 
 class ButtonModule extends WildModule {
-    constructor(connector) {}
+    constructor(connector) {
         super(connector);
     }
 
@@ -618,7 +629,7 @@ class ButtonModule extends WildModule {
 }
 
 class TemperatureModule extends WildModule {
-    constructor(connector) {}
+    constructor(connector) {
         super(connector);
         _temperature = 0;
     }
@@ -668,14 +679,14 @@ class WildCards {
         this._led4 = new WildCardsPin(this, 9);
 
         //these two doesn't represent any real wildmodule or wildconnector, it merely exists at the board level so calls to connector.wildmodule.etc... from the pin level have a place to go
-        this._internal_connector__does_not_exist = new WildConnector(A, 1, 2);
+        this._internal_connector__does_not_exist = new WildConnector(wcConnector.A, 1, 2);
         this._wildModule = new WildModule(this._internal_connector__does_not_exist);
 
         //Map Arduino digital pins to connectors
-        this._connectorA = new WildConnector(A, 3, 17);
-        this._connectorB = new WildConnector(B, 19, 18);
-        this._connectorC = new WildConnector(C, 5, 14);
-        this._connectorD = new WildConnector(D, 10, 15);
+        this._connectorA = new WildConnector(this, wcConnector.A, 3, 17);
+        this._connectorB = new WildConnector(this, wcConnector.B, 19, 18);
+        this._connectorC = new WildConnector(this, wcConnector.C, 5, 14);
+        this._connectorD = new WildConnector(this, wcConnector.D, 10, 15);
 
         //ConnectorA
         //this._pin3 = new WildCardsPin(this._connectorA, 3);
@@ -949,7 +960,9 @@ class WildCards {
         // Set pin modes for static board level buttons and LEDS
 
         this._button1.setPinMode(inputMode);
+        this._button1.refreshPinMode();
         this._button2.setPinMode(inputMode);
+        this._button2.refreshPinMode();
         this._led1.setPinMode(outputMode);
         this._led2.setPinMode(outputMode);
         this._led3.setPinMode(outputMode);
@@ -1320,7 +1333,7 @@ class Scratch3WildCardsBlocks {
      * @return {boolean} - true if sensor value is true.
      */
     isLight (args) {
-        return this._isDigitalHigh(args.CONNECTOR_ID, wcPin1); //Each digital pin on a connector wll always be wcPin1
+        return this._isDigitalHigh(args.CONNECTOR_ID, wcPin.pin1); //Each digital pin on a connector wll always be wcPin1
     }
 
     /**
@@ -1330,61 +1343,49 @@ class Scratch3WildCardsBlocks {
      * @return {boolean} - true if sensor value is true.
      */
     whenLightSensed(args) {
-        return this._isDigitalHigh(args.CONNECTOR_ID, wcPin1); //Each digital pin on a connector wll always be wcPin1
+        return this._isDigitalHigh(args.CONNECTOR_ID, wcPin.pin1); //Each digital pin on a connector wll always be pin1
     }
 
     /**
      * Test whether a digital pin is high.
      * @param {object} args - the block's arguments.
      * @property {wcConnector} connector - the connector to test.
-     * @property {wcPin} pin - the pin on the connector to test, each connector has wcPin1 and wcPin2
+     * @property {wcPin} pin - the pin on the connector to test, each connector has pin1 and wcPin2
      * @return {boolean} - true if pin is high (value = 1).
      */
     _isDigitalHigh (connector, pin) {
         switch (connector) {
             case wcConnector.A:
-                if (pin == wcPin1) {
-                    if (this._device._connectorA.pinMode != inputMode) {
-                        this._device._connectorA._pin3.setPinMode(inputMode);
-                    }
-                    return ((this._device._connectorA._pin3.state == '1') ? 1 : 0);
+                if (pin == wcPin.pin1) {
+                    this._device._connectorA._pin1.setPinMode(inputMode);
+                    return ((this._device._connectorA._pin1.state == '1') ? 1 : 0);
                 }
                 else {  //implied wcPin2  TODO: Update pin number for wcPin2
-                    if (this._device._connectorA._pin3.pinMode != inputMode) {
-                        this._device._connectorA._pin3.setPinMode(inputMode);
-                    }
-                    return ((this._device._connectorA._pin3.state == '1') ? 1 : 0);
+                    this._device._connectorA._pin2.setPinMode(inputMode);
+                    return ((this._device._connectorA._pin2.state == '1') ? 1 : 0);
                 }
                 break;
 
             // TODO: add case for connector B
 
             case wcConnector.C:
-                if (pin == wcPin1) {
-                    if (this._device._connectorC.pinMode != inputMode) {
-                        this._device._connectorC._pin3.setPinMode(inputMode);
-                    }
-                    return ((this._device._connectorC._pin3.state == '1') ? 1 : 0);
+                if (pin == wcPin.pin1) {
+                    this._device._connectorC._pin1.setPinMode(inputMode);
+                    return ((this._device._connectorC._pin1.state == '1') ? 1 : 0);
                 }
                 else {  //implied wcPin2  TODO: Update pin number for wcPin2
-                    if (this._device._connectorC._pin5.pinMode != inputMode) {
-                        this._device._connectorC._pin5.setPinMode(inputMode);
-                    }
-                    return ((this._device._connectorC._pind.state == '1') ? 1 : 0);
+                    this._device._connectorC._pin2.setPinMode(inputMode);
+                    return ((this._device._connectorC._pin2.state == '1') ? 1 : 0);
                 }
                 break;
             case wcConnector.D:
-                if (pin == wcPin1) {
-                    if (this._device._connectorD.pinMode != inputMode) {
-                        this._device._connectorD._pin10.setPinMode(inputMode);
-                    }
-                    return ((this._device._connectorD._pin3.state == '1') ? 1 : 0);
+                if (pin ==wcPin.pin1) {
+                    this._device._connectorD._pin1.setPinMode(inputMode);
+                    return ((this._device._connectorD._pin1.state == '1') ? 1 : 0);
                 }
                 else {  //implied wcPin2  TODO: Update pin number for wcPin2
-                    if (this._device._connectorD._pin10.pinMode != inputMode) {
-                        this._device._connectorD._pin10.setPinMode(inputMode);
-                    }
-                    return ((this._device._connectorD._pin10.state == '1') ? 1 : 0);
+                    this._device._connectorD._pin2.setPinMode(inputMode);
+                    return ((this._device._connectorD._pin2.state == '1') ? 1 : 0);
                 }
                 break;
             default:
@@ -1476,22 +1477,16 @@ class Scratch3WildCardsBlocks {
 
         switch (connector) {
             case wcConnector.A:
-                if (this._device._connectorA._pin3.pinMode != servoMode) {
-                    this._device._connectorA._pin3.configureServo(minpulse, maxpulse);
-                }
-                this._device._connectorA._pin3.analogWrite(direction);
+                this._device._connectorA._pin1.setPinMode(servoMode);
+                this._device._connectorA._pin1.analogWrite(direction);
                 break;
             case wcConnector.C:
-                if (this._device._connectorC._pin5.pinMode != servoMode) {
-                    this._device._connectorC._pin5.configureServo(minpulse, maxpulse);
-                }
-                this._device._connectorC._pin5.analogWrite(direction);
+                this._device._connectorC_pin1.setPinMode(servoMode);
+                this._device._connectorC._pin1.analogWrite(direction);
                 break;
             case wcConnector.D:
-                if (this._device._connectorD._pin10.pinMode != servoMode) {
-                    this._device._connectorD._pin10.configureServo(minpulse, maxpulse);
-                }
-                this._device._connectorD._pin10.analogWrite(direction);
+                this._device._connectorD._pin1.setPinMode(servoMode);
+                this._device._connectorD._pin1.analogWrite(direction);
                 break;
             default:
                 //do nothing
@@ -1530,25 +1525,19 @@ class Scratch3WildCardsBlocks {
       switch (connector) {
           // TODO update logic for wcPin2
           case wcConnector.A:
-              if (this._device._connectorA._pin3.pinMode != outputMode) {
-                  this._device._connectorA._pin3.setPinMode(outputMode);
-              }
-              this._device._connectorA._pin3.digitalWrite(pinhighlow);
+              this._device._connectorA._pin1.setPinMode(outputMode);
+              this._device._connectorA._pin1.digitalWrite(pinhighlow);
               break;
 
           // TODO add case for connector B
 
           case wcConnector.C:
-              if (this._device._connectorC._pin5.pinMode != outputMode) {
-                  this._device._connectorC._pin5.setPinMode(outputMode);
-              }
-              this._device._connectorC._pin5.digitalWrite(pinhighlow);
+              this._device._connectorC._pin1.setPinMode(outputMode);
+              this._device._connectorC._pin1.digitalWrite(pinhighlow);
               break;
           case wcConnector.D:
-              if (this._device._connectorD._pin10.pinMode != outputMode) {
-                  this._device._connectorD._pin10.setPinMode(outputMode);
-              }
-              this._device._connectorD._pin10.digitalWrite(pinhighlow);
+              this._device._connectorD._pin1.setPinMode(outputMode);
+              this._device._connectorD._pin1.digitalWrite(pinhighlow);
               break;
           default:
               //do nothing
