@@ -357,8 +357,8 @@ const wcOnOff = {
 }
 
 const wcPressedReleased = {
-    PRESSED = 'pressed',
-    RELEASED = 'released'
+    PRESSED: 'pressed',
+    RELEASED: 'released'
 }
 
 
@@ -541,10 +541,10 @@ class WildCardsPin {
     /**
      * Configure a Wildcards connector for a servo
      * Pymata uses this instead of set_pin_mode for servos
-     * @param {int} min_pulse - the minimum pulse setting for the servo, default to 4    TODO: make sure this parameter is correct for our servo
-     * @param {int} max_pulse - the minimum pulse setting for the servo, default to 360  TODO: make sure this parameter is correct for our servo
+     * @param {int} min_pulse - the min pulse setting for the servo, default to 4    TODO: make sure this parameter is correct for our servo
+     * @param {int} max_pulse - the max pulse setting for the servo, default to 255  TODO: make sure this parameter is correct for our servo
      */
-    configureServo (min_pulse = 4, max_pulse = 360) {
+    configureServo (min_pulse = 4, max_pulse = 255) {
         this._min_pulse = min_pulse;
         this._max_pulse = max_pulse;
         var msg = JSON.stringify({"method": "servo_config", "params": [this._pinNum, min_pulse, max_pulse]});
@@ -598,7 +598,7 @@ class WildCardsPin {
      */
     digital_message_reply (value) {
         this.state = value;
-        ////////////////////////////////////////////////////////////Why was this commented out?        
+        ////////////////////////////////////////////////////////////Why was this commented out?
         //this._parent.wildModule().digital_message_reply(this._pinNum, value);
     }
 
@@ -612,12 +612,12 @@ class WildButton {
     /**
      * Set up a WildButton object
      * @param {wcButton} BUTTON_ID - the ID of this button
-     * @param {int} pinNum - the Arduino-equivalent pin number     
+     * @param {int} pinNum - the Arduino-equivalent pin number
      */
     constructor(parent, BUTTON_ID, pinNum) {
         this._parent = parent;
         this._button = BUTTON_ID;
-        this._connector = NoConnector; 
+        this._connector = wcConnector.NoConnector;
         this._pin = new WildCardsPin(this, pinNum);
         this._wildModule = new WildModule(this._connector);
     }
@@ -665,12 +665,12 @@ class WildLED {
     /**
      * Set up a WildLED object
      * @param {wcLED} LED_ID - the ID of this LED
-     * @param {int} pinNum - the Arduino-equivalent pin number     
+     * @param {int} pinNum - the Arduino-equivalent pin number
      */
     constructor(parent, LED_ID, pinNum) {
         this._parent = parent;
         this._led = LED_ID;
-        this._connector = NoConnector; 
+        this._connector = wcConnector.NoConnector;
         this._pin = new WildCardsPin(this, pinNum);
         this._wildModule = new WildModule(this._connector);
     }
@@ -691,13 +691,14 @@ class WildLED {
         return (this._pin.state == 0) ? true : false;
     }
 
-    
+
     /**
      * Set the value of this WildLED object
      * @param {wcOnOff} onoff - whether or not to turn on this LED
      */
     setLED (onoff) {
-        this._pin.state = (onoff == wcOnOff.ON) ? this_pin.state = 1 : this_pin.state = 0;
+        this._pin.state = (onoff == wcOnOff.ON) ? this._pin.state = 1 : this._pin.state = 0;
+        this._pin.digitalWrite(this._pin.state);
     }
     /**
      * Set the WildLED (pin) value
@@ -850,12 +851,12 @@ class KnobModule extends WildModule {
     constructor(connector) {
         super(connector);
     }
-    //I think all analog input  will need to exist at the module level, if we are to 
+    //I think all analog input  will need to exist at the module level, if we are to
     //allow use of either analog input on Connector B. This module will serve the purpose of deciding which of
     //the two pins is the real/changing/dynamic analog input and point to the correct pin.
     //Basically, we look at the default ADC input pin level; if they're both there, it doesn't matter
     //but if one is ever NOT the default value, it will be the presumed analog input.
-    //Note that something that actually uses two analog inputs (e.g. the joystick module) will have a 
+    //Note that something that actually uses two analog inputs (e.g. the joystick module) will have a
     //different module implementation wherein both are used.
 }
 
@@ -886,7 +887,7 @@ class WildCards {
 
         //***** Create all the WC Pins ******//
         console.log("creating wildcards pins")
-/* 
+/*
         // On board pins for buttons
         this._button1 = new WildCardsPin(this, 4);
         this._button2 = new WildCardsPin(this, 16);
@@ -909,9 +910,9 @@ class WildCards {
         this._led1 = new WildLED(this, wcLED.LED_1, 6);
         this._led2 = new WildLED(this, wcLED.LED_2, 7);
         this._led3 = new WildLED(this, wcLED.LED_3, 8);
-        this._led4 = new WildLED(this, wcLED.LED_4, 9);   
-        
-        
+        this._led4 = new WildLED(this, wcLED.LED_4, 9);
+
+
         //Map Arduino digital pins to connectors
         this._connectorA = new WildConnector(this, wcConnector.A, 3, 17);
         this._connectorB = new WildConnector(this, wcConnector.B, 19, 18);
@@ -1598,44 +1599,13 @@ class Scratch3WildCardsBlocks {
     _isButtonPressedReleased (button_id, pressedreleased) {
         switch (pressedreleased) {
             case 'pressed':
-                return (this._device_.getbutton(button_id).ispressed() ? 1 : 0);
+                return ((this._device.getButton(button_id).state == '0') ? 1 : 0);
                 break;
             case 'released':
-                return (this._device_.getbutton(button_id).ispressed() ? 0 : 1);
+                return ((this._device.getButton(button_id).state == '1') ? 1 : 0);
         };
-
-/* 
-        switch (button_id) {
-        case wcButton.B_1:
-            switch (pressedreleased) {
-                case 'pressed':
-                    return ((this._device._button1.state == '0') ? 1 : 0);
-                    break;
-                case 'released':
-                    return ((this._device._button1.state == '1') ? 1 : 0);
-            };
-            //return (this._device.button1);
-            break;
-        case wcButton.B_2:
-            switch (pressedreleased) {
-                case 'pressed':
-                    return ((this._device._button2.state == '0') ? 1 : 0);
-                    break;
-                case 'released':
-                    return ((this._device._button2.state == '1') ? 1 : 0);
-            };
-            break;
-            //return (this._device.button2);
-        //case wcButton.B_1_AND_2:
-        //    return (this._device.button1) && (this._device.button2);
-        //case wcButton.B_1_OR_2:
-        //    return (this._device.button1) || (this._device.button2);
-        default:
-            return ((this._device._button1.state = '0') ? 1 : 0);
-        //    return (this._device.button1) || (this._device.button2); ;
-        }
     }
- */
+
     /**
      * Test whether a light sensor is asserted.
      * @param {object} args - the block's arguments.
@@ -1643,7 +1613,9 @@ class Scratch3WildCardsBlocks {
      * @return {boolean} - true if sensor value is true.
      */
     isLight (args) {
-        return this._isDigitalHigh(args.CONNECTOR_ID, wcPin.pin1); //Each digital pin on a connector wll always be wcPin1
+      var pin = this._device.getConnector(args.CONNECTOR_ID).getPin(wcPin.pin1)
+      pin.setPinMode(inputMode);
+      return ((pin.state == '1') ? 1 : 0);
     }
 
     /**
@@ -1653,20 +1625,9 @@ class Scratch3WildCardsBlocks {
      * @return {boolean} - true if sensor value is true.
      */
     whenLightSensed(args) {
-        return this._isDigitalHigh(args.CONNECTOR_ID, wcPin.pin1); //Each digital pin on a connector wll always be pin1
-    }
-
-    /**
-     * Test whether a digital pin is high.
-     * @param {object} args - the block's arguments.
-     * @property {wcConnector} connector - the connector to test.
-     * @property {wcPin} pin - the pin on the connector to test, each connector has pin1 and wcPin2
-     * @return {boolean} - true if pin is high (value = 1).
-     */
-    _isDigitalHigh (connector, pin) {
-        selectedpin = this._device.getConnector(connector).getPin(pin)  
-        selectedpin.setPinMode(inputMode);
-        return ((selectedpin.state == '1') ? 1 : 0);
+        var pin = this._device.getConnector(args.CONNECTOR_ID).getPin(wcPin.pin1)
+        pin.setPinMode(inputMode);
+        return ((pin.state == '1') ? 1 : 0);
     }
 
     /**
@@ -1685,12 +1646,11 @@ class Scratch3WildCardsBlocks {
      * @return {number} - number value representing knob position, range: 0-1023
      */
     getKnobPosition(args) {
-        const connector  = this._device.getConnector(args.CONNECTOR_ID)
-        const pin = connector.getPin(wcPin.pin2);
-        pin.setPinMode(analogMode);
+        //const connector  = this._device.getConnector(args.CONNECTOR_ID)
+        var pin = this._device.getConnector(args.CONNECTOR_ID).getPin(wcPin.pin2);
+        pin.setPinMode(analogMode);   // Setting to analogMode automatically triggers analog readbacks
         console.log(pin.state)
         return pin.state;
-        }
     }
     /**
      * Set the WildCards LEDs on or off
@@ -1699,47 +1659,7 @@ class Scratch3WildCardsBlocks {
      * @property {string} ON_OFF - the connector to test.
     */
     ledOnOff (args) {
-        const lednumber = args.LED_ID
-        const onoff  = args.ON_OFF
-        
-/*         var pinnumber = 13
-        var pinhighlow = 1
-
-        //console.log(lednumber)
-        //console.log(args.LED_ID)
-        //console.log(onoff)
-        //console.log(args.ON_OFF)
-
-        switch (onoff) {
-            case 'On':
-                pinhighlow = '1';
-                break;
-            case 'Off':
-                pinhighlow = '0';
-        };
- */
-        this._device.getLED(lednumber).setLED(onoff);
-/*         switch (lednumber) {
-            case wcLED.LED_1:
-                this._device._led1.digitalWrite(pinhighlow);
-                break;
-            case wcLED.LED_2:
-                this._device._led2.digitalWrite(pinhighlow);
-                break;
-            case wcLED.LED_3:
-                this._device._led3.digitalWrite(pinhighlow);
-                break;
-            case wcLED.LED_4:
-                this._device._led4.digitalWrite(pinhighlow);
-            default:
-                //do nothing
-        };
-
- */
-        //console.log(onoff);
-        //console.log(pinhighlow);
-        //this._device.setPinMode(pinnumber, outputMode);
-        //this._device.digitalWrite(pinnumber, pinhighlow);
+        this._device.getLED(args.LED_ID).setLED(args.ON_OFF);
     }
 
     /**
@@ -1749,12 +1669,11 @@ class Scratch3WildCardsBlocks {
      * @property {number} DIRECTION - the direction to set the servo to.
     */
     setServoPosition (args) {
-        const connector = args.CONNECTOR_ID
-        var direction  = args.DIRECTION + 4
-
-        const maxpulse = 360
+        var direction  = args.DIRECTION + 4  //offset by 4 to avoid servo jitter on edge values
+        const maxpulse = 255  //maxpulse/minpulse should be changed also in pin.servo_config method
         const minpulse = 4
 
+        // TODO: direction does not seem to be correct, ie input number to analogWrite differs from selection
         if (direction < minpulse) {
             direction = minpulse
         }
@@ -1762,11 +1681,8 @@ class Scratch3WildCardsBlocks {
         if (direction > maxpulse) {
             direction = maxpulse
         }
-        //console.log(connector)
-        //console.log(args.CONNECTOR_ID)
-        //console.log(direction)
-        //console.log(args.DIRECTION)
-        pin = this._device.getConnector(connector).getPin(wcPin.pin1)
+
+        var pin = this._device.getConnector(args.CONNECTOR_ID).getPin(wcPin.pin1)
         pin.setPinMode(servoMode);
         pin.analogWrite(direction);
     }
@@ -1777,7 +1693,6 @@ class Scratch3WildCardsBlocks {
      * @property {wcConnector} CONNECTOR_ID- the connector that the servo is connected to.
     */
     buzzerOnOff (args) {
-      const connector = args.CONNECTOR_ID
       const onoff  = args.ON_OFF
       var pinhighlow = 1
 
@@ -1789,20 +1704,10 @@ class Scratch3WildCardsBlocks {
               pinhighlow = '0';
       };
 
-      this._writeDigital(connector,pinhighlow);
-    }
-
-    /**
-     * Write digital high/low to specified connector's pin
-     * @property {wcConnector} connector - the connector that the servo is connected to.
-     * @property {number} pinhighlow - the state to write to the pin 1 = high, 2 = low.
-    */
-    _writeDigital(connector, pinhighlow) {
-        // TODO update logic for wcPin2
-        pin = this._device.getConnector(connector).getPin(wcPin.pin1)        
-        pin.setPinMode(outputMode);
-        pin.digitalWrite(pinhighlow);
-    }
+      var pin = this._device.getConnector(args.CONNECTOR_ID).getPin(wcPin.pin1)
+      pin.setPinMode(outputMode);
+      pin.digitalWrite(pinhighlow);
+    } 
 }
 
 module.exports = Scratch3WildCardsBlocks;
