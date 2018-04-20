@@ -21,6 +21,7 @@ var outputMode = "1";
 var analogMode = "2";
 var pwmMode = "3";
 var servoMode = "4";
+var i2cMode = '5';  // doesn't serve any purpose other than future use of keeping track of the current pin mode
 var noModeSet = "10";  //TODO: investigate pymata/firmata behavior in this mode, although it important to note that we should never send this mode over
 
 
@@ -377,52 +378,9 @@ class WildCardsPin {
         this._wcpinNum = wcpinNum;
         this._pinNum = pinNum;
         console.log("Created pin " + this._pinNum + " on connector " + this._parent._connector)
+
         //pinNum is used for Digital Read/Writes and Analog Writes (PWM), but for Analog Reads, a different
         //pin numbering scheme is used (mapping to ADC0, ADC1, etc. for Arduinos)
-        /*
-        switch (pinNum) {
-        case 23:  //maps to Arduino pin 23, and WildCards connector C pin 2
-            this._pinNumAnalogInput = 0;
-            break;
-        case 24:  //maps to Arduino pin 24, and WildCards connector D pin 2
-            this._pinNumAnalogInput = 1;
-            break;n
-        case 25:  //maps to Arduino pin 25
-            //this analog input is not connected for WildCards
-            this._pinNumAnalogInput = 2;
-            break;
-        case 26:  //maps to Arduino pin 26, and WildCards connector A pin 2
-            this._pinNumAnalogInput = 3;
-            break;
-        case 27:  //maps to Arduino pin 27, and WildCards connector B pin 2
-            this._pinNumAnalogInput = 4;
-            break;
-        case 28:  //maps to Arduino pin 28, and WildCards connector B pin 1
-            this._pinNumAnalogInput = 5;
-            break;
-        default:
-            this._pinNumAnalogInput = 0;  //unsure if defaulting to ADC0 is the best to do here, or to make it something invalid?
-            break;
-        }
-
-        case 0:  //ADC0 maps to Arduino pin 14, and WildCards connector C pin 2
-            this._connectorC.pin2.analog_message_reply(out);
-            break;
-        case 1:  //ADC1 maps to Arduino pin 15, and WildCards connector D pin 2
-            this._connectorD.pin2.analog_message_reply(out);
-            break;
-        case 2:  //ADC2 maps to Arduino pin 16
-            //this analog input is not connected for WildCards
-            break;
-        case 3:  //ADC3 maps to Arduino pin 17, and WildCards connector A pin 2
-            this._connectorA.pin2.analog_message_reply(out);
-            break;
-        case 4:  //ADC4 maps to Arduino pin 18, and WildCards connector B pin 2
-            this._connectorB.pin2.analog_message_reply(out);
-            break;
-        case 5:  //ADC5 maps to Arduino pin 19, and WildCards connector B pin 1
-            this._connectorB.pin1.analog_message_reply(out);
-        */
         switch (pinNum) {
         case 14:  //ADC0 maps to Arduino pin 14, and WildCards connector C pin 2
             this._pinNumAnalogInput = 0;
@@ -1496,13 +1454,18 @@ class Scratch3WildCardsBlocks {
                 },
                 {
                     opcode: 'getTemperature',
-                    text: 'temperature: [CONNECTOR_ID]',
+                    text: 'temperature: [CONNECTOR_ID] [TEMP_TYPE]',
                     blockType: BlockType.REPORTER,
                     arguments: {
                         CONNECTOR_ID: {
                             type: ArgumentType.STRING,
                             menu: 'connectorSelect',
                             defaultValue: wcConnector.A
+                        },
+                        TEMP_TYPE: {
+                            type: ArgumentType.STRING,
+                            menu: 'tempSelect',
+                            defaultValue: "Fahrenheit"
                         }
                     }
                 }
@@ -1522,6 +1485,8 @@ class Scratch3WildCardsBlocks {
                     [wcOnOff.ON, wcOnOff.OFF],
                 pressedReleased:
                     [wcPressedReleased.PRESSED, wcPressedReleased.RELEASED],
+                tempSelect:
+                    ["Celsius", "Fahrenheit"],
             }
         };
     }
@@ -1631,12 +1596,47 @@ class Scratch3WildCardsBlocks {
     }
 
     /**
-     * Get the tempature readings from an external sensor.
+     * Get the temperature readings from an external analog temp sensor.
      * @param {object} args - the block's arguments.
      * @property {wcConnector} CONNECTOR_ID - the connector to test.
+     * @property {wcConnector} CONNECTOR_ID - the connector to test.
      */
-    getTemperature () {
-        // TODO get temp reading, should probably timeout if nothing is connected
+    getTemperature (args) {
+
+        const b = parseFloat(4275);               // B value of the thermistor
+        const r0 = parseFloat(100000);            // R0 = 100k
+
+        //Get data from sensor
+        var pin = this._device.getConnector(args.CONNECTOR_ID).getPin(wcPin.pin2);
+        pin.setPinMode(analogMode);   // Setting to analogMode automatically triggers analog readbacks
+        var a = parseFloat(pin.state);
+
+        console.log("A: " + a)
+
+        //Convert to a temperature readings in both c and f
+        var r = parseFloat((1023.0/a)-1);
+        console.log("r: " + r)
+        r = r0 * r;
+        console.log("r: " + r)
+        r = Math.log(r/r0);
+        console.log("r: " + r)
+        r = (1.0/(r/b)+1/298.15));
+        console.log("r: " + r)
+        var temperature_c = (r-273.15); // convert to temperature via datasheet
+        var temperature_f = temperature_c * 9/5 + 32;
+
+        console.log("temperature_c : " + temperature_c)
+        console.log("temperature_f : " + temperature_f)
+
+        if (args.TEMP_TYPE == "Celsius") {
+            console.log(args.TEMP_TYPE + ": " + temperature_c);
+            return temperature_c;
+        }
+        else if (args.TEMP_TYPE == "Fahrenheit") {
+            console.log(args.TEMP_TYPE + ": " + temperature_f);
+            return temperature_f;
+
+        }
     }
 
     /**
@@ -1646,7 +1646,6 @@ class Scratch3WildCardsBlocks {
      * @return {number} - number value representing knob position, range: 0-1023
      */
     getKnobPosition(args) {
-        //const connector  = this._device.getConnector(args.CONNECTOR_ID)
         var pin = this._device.getConnector(args.CONNECTOR_ID).getPin(wcPin.pin2);
         pin.setPinMode(analogMode);   // Setting to analogMode automatically triggers analog readbacks
         console.log(pin.state)
@@ -1669,7 +1668,7 @@ class Scratch3WildCardsBlocks {
      * @property {number} DIRECTION - the direction to set the servo to.
     */
     setServoPosition (args) {
-        var direction  = args.DIRECTION + 4  //offset by 4 to avoid servo jitter on edge values
+        var direction  = parseInt(args.DIRECTION) + 4  //offset by 4 to avoid servo jitter on edge values, parse for Int in case leading/trailing space character is present
         const maxpulse = 255  //maxpulse/minpulse should be changed also in pin.servo_config method
         const minpulse = 4
 
@@ -1707,7 +1706,7 @@ class Scratch3WildCardsBlocks {
       var pin = this._device.getConnector(args.CONNECTOR_ID).getPin(wcPin.pin1)
       pin.setPinMode(outputMode);
       pin.digitalWrite(pinhighlow);
-    } 
+    }
 }
 
 module.exports = Scratch3WildCardsBlocks;
