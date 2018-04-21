@@ -339,6 +339,13 @@ const wcLED = {
     LED_4: 'LED 4'
 };
 
+const wcSensor = {
+    LIGHT: "light sensed",
+    SOUND: "sound sensed",
+    TOUCH: "touch sensed",
+    BUTTON: "button pressed",
+    NoConnector: "Onboard, no connector"
+};
 const wcConnector = {
     A: 'Connector A',
     B: 'Connector B',
@@ -1384,10 +1391,15 @@ class Scratch3WildCardsBlocks {
                     }
                 },
                 {
-                    opcode: 'isLight',
-                    text: 'light sensed [CONNECTOR_ID]',
+                    opcode: 'isDigitalHigh',
+                    text: '[DIGITAL_SENSOR] [CONNECTOR_ID]',
                     blockType: BlockType.BOOLEAN,
                     arguments: {
+                      DIGITAL_SENSOR: {
+                          type: ArgumentType.STRING,
+                          menu: 'sensorSelect',
+                          defaultValue: wcSensor.LIGHT
+                      },
                         CONNECTOR_ID: {
                             type: ArgumentType.STRING,
                             menu: 'connectorSelect',
@@ -1396,10 +1408,15 @@ class Scratch3WildCardsBlocks {
                     }
                 },
                 {
-                    opcode: 'whenLightSensed',
-                    text: 'when light sensed [CONNECTOR_ID]',
+                    opcode: 'whenDigitalHigh',
+                    text: 'when [DIGITAL_SENSOR] [CONNECTOR_ID]',
                     blockType: BlockType.HAT,
                     arguments: {
+                      DIGITAL_SENSOR: {
+                          type: ArgumentType.STRING,
+                          menu: 'sensorSelect',
+                          defaultValue: wcSensor.LIGHT
+                      },
                       CONNECTOR_ID: {
                           type: ArgumentType.STRING,
                           menu: 'pwm_connectorSelect',
@@ -1475,6 +1492,8 @@ class Scratch3WildCardsBlocks {
                     [wcButton.B_1, wcButton.B_2],
                 ledSelect:
                     [wcLED.LED_1, wcLED.LED_2, wcLED.LED_3, wcLED.LED_4],
+                sensorSelect:
+                    [wcSensor.LIGHT, wcSensor.SOUND, wcSensor.TOUCH, wcSensor.BUTTON],
                 connectorSelect:
                     [wcConnector.A, wcConnector.B, wcConnector.C, wcConnector.D],
                 pwm_connectorSelect:
@@ -1577,8 +1596,9 @@ class Scratch3WildCardsBlocks {
      * @property {wcConnector} CONNECTOR_ID - the connector to test.
      * @return {boolean} - true if sensor value is true.
      */
-    isLight (args) {
-      var pin = this._device.getConnector(args.CONNECTOR_ID).getPin(wcPin.pin1)
+    isDigitalHigh (args) {
+      var sensor = args.DIGITAL_SENSOR;   //this isnt used now other than to provide a means to track what is on each connector from the user's standpoint
+      var pin = this._device.getConnector(args.CONNECTOR_ID).getPin(wcPin.pin1);
       pin.setPinMode(inputMode);
       return ((pin.state == '1') ? 1 : 0);
     }
@@ -1589,7 +1609,8 @@ class Scratch3WildCardsBlocks {
      * @property {wcConnector} CONNECTOR_ID - the connector to test.
      * @return {boolean} - true if sensor value is true.
      */
-    whenLightSensed(args) {
+    whenDigitalHigh(args) {
+        var sensor = args.DIGITAL_SENSOR;   //this isnt used now other than to provide a means to track what is on each connector from the user's standpoint
         var pin = this._device.getConnector(args.CONNECTOR_ID).getPin(wcPin.pin1)
         pin.setPinMode(inputMode);
         return ((pin.state == '1') ? 1 : 0);
@@ -1603,39 +1624,43 @@ class Scratch3WildCardsBlocks {
      */
     getTemperature (args) {
 
-        const b = parseFloat(4275);               // B value of the thermistor
-        const r0 = parseFloat(100000);            // R0 = 100k
+        const b_coeff = parseFloat(4275);               // B value of the thermistor
+        const series_resistance = parseFloat(100000);            // R0 = 100k
+        var resistance = parseFloat(0);
+        var steinhart = parseFloat(0);
 
         //Get data from sensor
         var pin = this._device.getConnector(args.CONNECTOR_ID).getPin(wcPin.pin2);
         pin.setPinMode(analogMode);   // Setting to analogMode automatically triggers analog readbacks
-        var a = parseFloat(pin.state);
+        var adc_value = parseFloat(pin.state);
 
-        console.log("A: " + a)
-
-        //Convert to a temperature readings in both c and f
-        var r = parseFloat((1023.0/a)-1);
-        console.log("r: " + r)
-        r = r0 * r;
-        console.log("r: " + r)
-        r = Math.log(r/r0);
-        console.log("r: " + r)
-        r = (1.0/(r/b)+1/298.15));
-        console.log("r: " + r)
-        var temperature_c = (r-273.15); // convert to temperature via datasheet
-        var temperature_f = temperature_c * 9/5 + 32;
-
-        console.log("temperature_c : " + temperature_c)
-        console.log("temperature_f : " + temperature_f)
-
-        if (args.TEMP_TYPE == "Celsius") {
-            console.log(args.TEMP_TYPE + ": " + temperature_c);
-            return temperature_c;
+        if (adc_value == 0) {
+            console.log("Initializing temperature sensor....")     //aka ignore the first reading if it outputs a zero
+            return 0;
         }
-        else if (args.TEMP_TYPE == "Fahrenheit") {
-            console.log(args.TEMP_TYPE + ": " + temperature_f);
-            return temperature_f;
+        else {
+            console.log("A: " + adc_value)
+            //Convert adc resistance to a temperature readings in Kelvin via Steinhart-Hart Formula
+            //1.0/(log(R/R0)/B+1/298.15);
+            resistance = (1023.0/adc_value)-1.0;
+            resistance = series_resistance / resistance;
+            console.log("resistance: " + resistance +" ohms")
+            steinhart = (resistance/series_resistance);
+            steinhart = Math.log(steinhart);
+            steinhart = steinhart / b_coeff;
+            steinhart = steinhart + (1/298.15);
+            var temperature_k = 1/steinhart;
+            var temperature_c = (temperature_k-273.15);
+            var temperature_f = temperature_c * 9/5 + 32;
 
+            if (args.TEMP_TYPE == "Celsius") {
+                console.log(args.TEMP_TYPE + ": " + temperature_c);
+                return temperature_c;
+            }
+            else if (args.TEMP_TYPE == "Fahrenheit") {
+                console.log(args.TEMP_TYPE + ": " + temperature_f);
+                return temperature_f;
+            }
         }
     }
 
