@@ -567,6 +567,17 @@ class WildCardsPin {
         //this._parent.wildModule().digital_message_reply(this._pinNum, value);
     }
 
+    /**
+     * Plays a tone of a specified frequecy for a secified amount of time
+     * @param {number} tone_command - TONE_TONE to play, TONE_NO_TONE to stop playing.
+     * @param {number} frequency - frequency to play in hZ.
+     * @param {number} duration - length of time in mS.
+     */
+    play_tone (tone_command, frequency, duration) {
+          var msg = JSON.stringify({"method": "play_tone", "params": [this._pinNum, tone_command, frequency, duration]});
+          console.log(msg);
+          this._parent._sendmessage(msg);
+    }
 }
 
 
@@ -1441,8 +1452,8 @@ class Scratch3WildCardsBlocks {
                     }
                 },
                 {
-                    opcode: 'buzzerOnOff',
-                    text: 'turn buzzer [ON_OFF]: [CONNECTOR_ID]',
+                    opcode: 'buzzerTone',
+                    text: '[PLAY_STOP] [NOTE] on buzzer for [DURATION] seconds: [CONNECTOR_ID]',
                     blockType: BlockType.COMMAND,
                     arguments: {
                         CONNECTOR_ID: {
@@ -1450,11 +1461,20 @@ class Scratch3WildCardsBlocks {
                             menu: 'connectorSelect',
                             defaultValue: wcConnector.A
                         },
-                        ON_OFF: {
+                        PLAY_STOP: {
                             type: ArgumentType.STRING,
-                            menu: 'onOff',
-                            defaultValue: 'On'
+                            menu: 'playStop',
+                            defaultValue: 'Play'
+                        },
+                        NOTE: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: 290
+                        },
+                        DURATION: {
+                            type: ArgumentType.NUMBER,
+                            defaultValue: 1
                         }
+
                     }
                 },
                 {
@@ -1506,6 +1526,10 @@ class Scratch3WildCardsBlocks {
                     [wcPressedReleased.PRESSED, wcPressedReleased.RELEASED],
                 tempSelect:
                     ["Celsius", "Fahrenheit"],
+                playStop:
+                    ["Play", "Stop"],
+                musicNote:
+                    ["E1", "F1", "G", "A", "B", "C", "D", "E2", "F2"]
             }
         };
     }
@@ -1714,23 +1738,60 @@ class Scratch3WildCardsBlocks {
     /**
      * Turn a WildModules buzzer on or off
      * @param {object} args - the block's arguments.
-     * @property {wcConnector} CONNECTOR_ID- the connector that the servo is connected to.
+     * @property {wcConnector} CONNECTOR_ID- the connector that the buzzer is connected to.
+     * @property {wcConnector} PLAY_STOP- PLAY or STOP PLAYING
+     * @property {wcConnector} NOTE- Right now its set to everyone note on the Treble Clef
+     * @property {wcConnector} DURATION- Durations in whole seconds
     */
-    buzzerOnOff (args) {
-      const onoff  = args.ON_OFF
-      var pinhighlow = 1
+    buzzerTone (args) {
+      var tone_command = "TONE_TONE"; //TONE_TONE to play, TONE_NO_TONE to stop playing.
+      var frequency = 0.0;   //In Hz
+      var duration = 0;     // In mS
 
-      switch (onoff) {
-          case 'On':
-              pinhighlow = '1';
+      if (args.PLAY_STOP == "Stop") {
+          tone_command = "TONE_NO_TONE";
+      }
+      else {
+          tone_command = "TONE_TONE";
+      }
+      /*
+      switch(args.NOTE) {
+          case "E1":
+              frequency = 164.8;
               break;
-          case 'Off':
-              pinhighlow = '0';
-      };
+          case "F1":
+              frequency = 174.6;
+              break;
+          case "G":
+              frequency = 195.9;
+              break;
+          case "A":
+              frequency = 220.0;
+              break;
+          case "B":
+              frequency = 246.9;
+              break;
+          case "C":
+              frequency = 261.6;
+              break;
+          case "D":
+              frequency = 293.6;
+              break;
+          case "E2":
+              frequency = 329.6;
+              break;
+          case "F2":
+              frequency = 349.2;
+              break;
+      }
+      */
+
+      frequency = args.NOTE;
+
+      duration = args.DURATION * 1000;  // scale from S to mS
 
       var pin = this._device.getConnector(args.CONNECTOR_ID).getPin(wcPin.pin1)
-      pin.setPinMode(outputMode);
-      pin.digitalWrite(pinhighlow);
+      pin.play_tone(tone_command, frequency, duration)
     }
 }
 
