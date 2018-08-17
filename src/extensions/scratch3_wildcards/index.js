@@ -329,7 +329,9 @@ var tempsocket = new WebSocket('ws://' + ipAddress + ':' + ipPort);
  */
 const wcButton = {
     B_1: 'Button 1',
-    B_2: 'Button 2'
+    B_2: 'Button 2',
+    B_3: 'Button 3',
+    B_4: 'Button 4',
 };
 
 const wcLED = {
@@ -480,6 +482,9 @@ class WildCardsPin {
                 this._parent._sendmessage(msg);
             }
             else {
+                if (pinMode == inputMode) {
+                    this.digitalWrite("0"); //disable the internal pull-up
+                }
                 var msg = JSON.stringify({"method": "set_pin_mode", "params": [this._pinNum, pinMode]});
                 console.log(msg);
                 this._pinMode = pinMode;
@@ -871,11 +876,13 @@ class WildCards {
 
         this._button1 = new WildButton(this, wcButton.B_1, 4);
         this._button2 = new WildButton(this, wcButton.B_2, 16);
+        this._button3 = new WildButton(this, wcButton.B_3, 6);
+        this._button4 = new WildButton(this, wcButton.B_4, 7);
 
-        this._led1 = new WildLED(this, wcLED.LED_1, 6);
-        this._led2 = new WildLED(this, wcLED.LED_2, 7);
-        this._led3 = new WildLED(this, wcLED.LED_3, 8);
-        this._led4 = new WildLED(this, wcLED.LED_4, 9);
+        this._led1 = new WildLED(this, wcLED.LED_1, 11);
+        this._led2 = new WildLED(this, wcLED.LED_2, 12);
+        this._led3 = new WildLED(this, wcLED.LED_3, 2);
+        this._led4 = new WildLED(this, wcLED.LED_4, 8);
 
 
         //Map Arduino digital pins to connectors
@@ -956,10 +963,12 @@ class WildCards {
                         //    document.getElementById("ip11").value = out;
                             //this._pin5.state = out;
                             break;
-                        case 6:  //maps to Arduino pin 6
+                        case 6:  //maps to Arduino pin 6, and Wildcards button3
+                            this._button3.pin.state = out;
                         //    document.getElementById("ip6").value = out;
                             break;
-                        case 7:  //maps to Arduino pin 7
+                        case 7:  //maps to Arduino pin 7, and Wildcards button4
+                            this._button4.pin.state = out;						
                         //    document.getElementById("ip7").value = out;
                             break;
                         case 8:  //maps to Arduino pin 8
@@ -1150,6 +1159,10 @@ class WildCards {
         this._button1.pin.refreshPinMode();
         this._button2.pin.setPinMode(inputMode);
         this._button2.pin.refreshPinMode();
+        this._button3.pin.setPinMode(inputMode);
+        this._button3.pin.refreshPinMode();
+        this._button4.pin.setPinMode(inputMode);
+        this._button4.pin.refreshPinMode();
         this._led1.pin.setPinMode(outputMode);
         this._led2.pin.setPinMode(outputMode);
         this._led3.pin.setPinMode(outputMode);
@@ -1206,7 +1219,13 @@ class WildCards {
                 break;
             case wcButton.B_2:
                 return this._button2;
-            default:
+				break;
+            case wcButton.B_3:
+                return this._button3;
+				break;
+            case wcButton.B_4:
+                return this._button4;				
+    		default:
                 //do nothing
         }
     }
@@ -1489,7 +1508,7 @@ class Scratch3WildCardsBlocks {
             ],
             menus: {
                 buttonSelect:
-                    [wcButton.B_1, wcButton.B_2],
+                    [wcButton.B_1, wcButton.B_2, wcButton.B_3, wcButton.B_4],
                 ledSelect:
                     [wcLED.LED_1, wcLED.LED_2, wcLED.LED_3, wcLED.LED_4],
                 sensorSelect:
