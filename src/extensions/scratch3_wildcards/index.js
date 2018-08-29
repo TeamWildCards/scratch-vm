@@ -21,8 +21,13 @@ var outputMode = "1";
 var analogMode = "2";
 var pwmMode = "3";
 var servoMode = "4";
-var i2cMode = '5';  // doesn't serve any purpose other than future use of keeping track of the current pin mode
-var noModeSet = "10";  //TODO: investigate pymata/firmata behavior in this mode, although it important to note that we should never send this mode over
+var i2cMode = "6";
+var stepperMode = "8";
+var toneMode = "10";
+var sonarMode = "11";
+var pullupMode = "13"
+var ignoreMode = "127"
+var noModeSet = "126";  //TODO: investigate pymata/firmata behavior in this mode, although it important to note that we should never send this mode over to the actual board (as Firmata won't recognize it).
 
 
 /** TODO: Fix this to use DeviceManager/DeviceFinder/DeviceOpener. Need to work on Pymata_aio (pymata_iot)
@@ -346,14 +351,14 @@ const wcSensor = {
     SOUND: "sound sensed",
     TOUCH: "touch sensed",
     BUTTON: "button pressed",
-    NoConnector: "Onboard, no connector"
+    Onboard: "Onboard"
 };
 const wcConnector = {
     A: 'Connector A',
     B: 'Connector B',
     C: 'Connector C',
     D: 'Connector D',
-    NoConnector: "Onboard, no connector"
+    Onboard: "Onboard"
 };
 
 const wcPin = {
@@ -378,7 +383,7 @@ const wcPressedReleased = {
 class WildCardsPin {
   /**
    * Construct a WildCards pin instance.
-   * @param {WildConnector} parent - the connector (or WildButton or WildLED) to which this pin belongs
+   * @param {WildConnector} parent - the connector (or WildButton or WildLED or WildBuzzer) to which this pin belongs
    * @param {int} pinNum - the Arduino-equivalent pin number
    * @param {wcPin} wcpinNum - the WildCards connector pin number (wcPin1 or wcPin2), ignored for non-connector pins like the on board LEDs/Buttons/Buzzer
    */
@@ -489,7 +494,7 @@ class WildCardsPin {
                 console.log(msg);
                 this._pinMode = pinMode;
                 this._parent._sendmessage(msg);
-            }
+			}
         }
     }
 
@@ -511,10 +516,10 @@ class WildCardsPin {
     /**
      * Configure a Wildcards connector for a servo
      * Pymata uses this instead of set_pin_mode for servos
-     * @param {int} min_pulse - the min pulse setting for the servo, default to 4    TODO: make sure this parameter is correct for our servo
-     * @param {int} max_pulse - the max pulse setting for the servo, default to 255  TODO: make sure this parameter is correct for our servo
+     * @param {int} min_pulse - the min pulse setting for the servo, default to 544
+     * @param {int} max_pulse - the max pulse setting for the servo, default to 2400
      */
-    configureServo (min_pulse = 4, max_pulse = 255) {
+    configureServo (min_pulse = 544, max_pulse = 2400) {
         this._min_pulse = min_pulse;
         this._max_pulse = max_pulse;
         var msg = JSON.stringify({"method": "servo_config", "params": [this._pinNum, min_pulse, max_pulse]});
@@ -534,7 +539,7 @@ class WildCardsPin {
     }
 
     /**
-     * Write and analog (PWM) value to a pin1
+     * Write and analog (PWM) value to a pin
      * @param {number} value - PWM duty cycle to write to pin 0 -255 TODO: verify this
      */
     analogWrite (value) {
@@ -542,12 +547,25 @@ class WildCardsPin {
         console.log(msg);
         this._parent._sendmessage(msg);
     }
-
+	
     /**
      * Read analog value from pin2 aka analog input
      */
     analogRead () {
         var msg = JSON.stringify({"method": "analog_read", "params": [this._pinNumAnalogInput]});
+        console.log(msg);
+        this._parent._sendmessage(msg);
+    }
+
+
+    /**
+     * Play a tone on a pin
+     * @param {number} tone_command - either "TONE_TONE" to play, "TONE_NO_TONE" to stop playing.
+     * @param {number} frequency - Tone frequency in Hz
+     * @param {number} duration - Tone duration in ms
+     */
+    playTone (tone_command, frequency, duration) {
+        var msg = JSON.stringify({"method": "play_tone", "params": [this._pinNum, tone_command, frequency, duration]});
         console.log(msg);
         this._parent._sendmessage(msg);
     }
@@ -587,7 +605,7 @@ class WildButton {
     constructor(parent, BUTTON_ID, pinNum) {
         this._parent = parent;
         this._button = BUTTON_ID;
-        this._connector = wcConnector.NoConnector;
+        this._connector = wcConnector.Onboard;
         this._pin = new WildCardsPin(this, pinNum);
         this._wildModule = new WildModule(this._connector);
     }
@@ -640,7 +658,7 @@ class WildLED {
     constructor(parent, LED_ID, pinNum) {
         this._parent = parent;
         this._led = LED_ID;
-        this._connector = wcConnector.NoConnector;
+        this._connector = wcConnector.Onboard;
         this._pin = new WildCardsPin(this, pinNum);
         this._wildModule = new WildModule(this._connector);
     }
@@ -891,6 +909,8 @@ class WildCards {
         this._connectorC = new WildConnector(this, wcConnector.C, 5, 14);
         this._connectorD = new WildConnector(this, wcConnector.D, 10, 15);
 
+		this._onboardbuzzer = new WildConnector(this, wcConnector.Onboard, 9, 9);  //2nd pin won't be used, can be anything
+		
         this._socket.onmessage = function (message) {
             //console.log('got message' + message.data);
             //console.log(message.data);
@@ -1200,6 +1220,9 @@ class WildCards {
             case wcConnector.D:
                 return this._connectorD;
                 break;
+			case wcConnector.Onboard:
+				return this._onboardbuzzer;
+				break;
             default:
                 //do nothing
         }
@@ -1414,11 +1437,11 @@ class Scratch3WildCardsBlocks {
                     text: '[DIGITAL_SENSOR] [CONNECTOR_ID]',
                     blockType: BlockType.BOOLEAN,
                     arguments: {
-                      DIGITAL_SENSOR: {
-                          type: ArgumentType.STRING,
-                          menu: 'sensorSelect',
-                          defaultValue: wcSensor.LIGHT
-                      },
+                        DIGITAL_SENSOR: {
+                            type: ArgumentType.STRING,
+                            menu: 'sensorSelect',
+                            defaultValue: wcSensor.LIGHT
+                        },
                         CONNECTOR_ID: {
                             type: ArgumentType.STRING,
                             menu: 'connectorSelect',
@@ -1461,18 +1484,21 @@ class Scratch3WildCardsBlocks {
                 },
                 {
                     opcode: 'buzzerOnOff',
-                    text: 'turn buzzer [ON_OFF]: [CONNECTOR_ID]',
+                    text: '[CONNECTOR_ID] buzz at [FREQUENCY]Hz for [DURATION]ms',
                     blockType: BlockType.COMMAND,
                     arguments: {
                         CONNECTOR_ID: {
                             type: ArgumentType.STRING,
-                            menu: 'connectorSelect',
-                            defaultValue: wcConnector.A
+                            menu: 'connectorOrOnboardSelect',
+                            defaultValue: wcConnector.Onboard
                         },
-                        ON_OFF: {
-                            type: ArgumentType.STRING,
-                            menu: 'onOff',
-                            defaultValue: 'On'
+                        FREQUENCY: {
+                          type: ArgumentType.NUMBER,
+                          defaultValue: 440
+                        },
+                        DURATION: {
+                          type: ArgumentType.NUMBER,
+                          defaultValue: 300
                         }
                     }
                 },
@@ -1515,6 +1541,8 @@ class Scratch3WildCardsBlocks {
                     [wcSensor.LIGHT, wcSensor.SOUND, wcSensor.TOUCH, wcSensor.BUTTON],
                 connectorSelect:
                     [wcConnector.A, wcConnector.B, wcConnector.C, wcConnector.D],
+                connectorOrOnboardSelect:
+                    [wcConnector.Onboard, wcConnector.A, wcConnector.B, wcConnector.C, wcConnector.D],
                 pwm_connectorSelect:
                     [wcConnector.A, wcConnector.C, wcConnector.D],
                 i2c_connectorSelect:
@@ -1692,8 +1720,8 @@ class Scratch3WildCardsBlocks {
     getKnobPosition(args) {
         var pin = this._device.getConnector(args.CONNECTOR_ID).getPin(wcPin.pin2);
         pin.setPinMode(analogMode);   // Setting to analogMode automatically triggers analog readbacks
-        console.log(pin.state)
-        return pin.state;
+        console.log(pin.state*180/1024)
+        return pin.state*180/1024;
     }
     /**
      * Set the WildCards LEDs on or off
@@ -1731,26 +1759,25 @@ class Scratch3WildCardsBlocks {
     }
 
     /**
-     * Turn a WildModules buzzer on or off
+     * Turn a WildModules buzzer on for a specified duration at a specified frequency
      * @param {object} args - the block's arguments.
-     * @property {wcConnector} CONNECTOR_ID- the connector that the servo is connected to.
-    */
+     * @property {wcConnector} CONNECTOR_ID- the connector that the buzzer is connected to.
+     * @property {number} FREQUENCY- the pitch to play the buzzer at in Hz
+     * @property {number} DURATION- how long to play the buzzer in ms. Set to zero to turn off immediately.
+	 */
     buzzerOnOff (args) {
-      const onoff  = args.ON_OFF
-      var pinhighlow = 1
-
-      switch (onoff) {
-          case 'On':
-              pinhighlow = '1';
-              break;
-          case 'Off':
-              pinhighlow = '0';
-      };
-
       var pin = this._device.getConnector(args.CONNECTOR_ID).getPin(wcPin.pin1)
-      pin.setPinMode(outputMode);
-      pin.digitalWrite(pinhighlow);
+      pin.setPinMode(toneMode);
+      if (args.DURATION <= 0) {
+        //shut off the tone
+		pin.playTone("TONE_NO_TONE", 0, 0)
+      }
+      else {
+	    //play the tone for the specified duration
+		pin.playTone("TONE_TONE", args.FREQUENCY, args.DURATION)
+	  }
     }
 }
+
 
 module.exports = Scratch3WildCardsBlocks;
