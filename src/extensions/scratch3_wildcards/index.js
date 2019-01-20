@@ -25,9 +25,11 @@ var i2cMode = "6";
 var stepperMode = "8";
 var toneMode = "10";
 var sonarMode = "11";
-var pullupMode = "13"
-var ignoreMode = "127"
-var noModeSet = "126";  //TODO: investigate pymata/firmata behavior in this mode, although it important to note that we should never send this mode over to the actual board (as Firmata won't recognize it).
+var pullupMode = "13";
+var ignoreMode = "127";
+var noModeSet = "126";  
+//Firmata mostly ignores an unrecognized pin mode like 126.
+//Technically, Firmata emits a string message saying "Unknown pin mode"
 
 
 /** TODO: Fix this to use DeviceManager/DeviceFinder/DeviceOpener. Need to work on Pymata_aio (pymata_iot)
@@ -469,7 +471,7 @@ class WildCardsPin {
 
     /**
      * Set the Wildcards pin mode.
-     * @param {int} pinMode - sets the mode of the pin (e.g. input, output); for servo, use configureservo function instead
+     * @param {int} pinMode - sets the mode of the pin (e.g. input, output)
      */
     setPinMode (pinMode) {
         if (this._pinMode == pinMode) {
@@ -480,12 +482,12 @@ class WildCardsPin {
             if (pinMode == servoMode) {
                 this.configureServo (this._min_pulse, this._max_pulse)
             }
-            else if (pinMode == analogMode) {
-                var msg = JSON.stringify({"method": "set_pin_mode", "params": [this._pinNumAnalogInput, pinMode]});
-                console.log(msg);
-                this._pinMode = pinMode;
-                this._parent._sendmessage(msg);
-            }
+            //else if (pinMode == analogMode) {
+            //    var msg = JSON.stringify({"method": "set_pin_mode", "params": [this._pinNumAnalogInput, pinMode]});
+            //    console.log(msg);
+            //    this._pinMode = pinMode;
+            //    this._parent._sendmessage(msg);
+            //}
             else {
                 if (pinMode == inputMode) {
                     this.digitalWrite("0"); //disable the internal pull-up
@@ -499,11 +501,11 @@ class WildCardsPin {
     }
 
     /**
-     * Update the Wildcards pin mode. Can be used to recover from a disconnect, for example.
+     * Update the Wildcards pin mode by setting it again. Can be used to recover from a disconnect, for example. For ANALOG and INPUT, this forces Firmata to send the current analog measurement now.
      */
     refreshPinMode () {
         if (this._pinMode == servoMode) {
-            this.onfigureServo(this._min_pulse, this._max_pulse);
+            this.configureServo(this._min_pulse, this._max_pulse);
         }
         else {
             var msg = JSON.stringify({"method": "set_pin_mode", "params": [this._pinNum, this._pinMode]});
@@ -516,10 +518,10 @@ class WildCardsPin {
     /**
      * Configure a Wildcards connector for a servo
      * Pymata uses this instead of set_pin_mode for servos
-     * @param {int} min_pulse - the min pulse setting for the servo, default to 544
+     * @param {int} min_pulse - the min pulse setting for the servo, default to 600, as this is tested at the factorys (note: was 544)
      * @param {int} max_pulse - the max pulse setting for the servo, default to 2400
      */
-    configureServo (min_pulse = 544, max_pulse = 2400) {
+    configureServo (min_pulse = 600, max_pulse = 2400) {
         this._min_pulse = min_pulse;
         this._max_pulse = max_pulse;
         var msg = JSON.stringify({"method": "servo_config", "params": [this._pinNum, min_pulse, max_pulse]});
@@ -533,7 +535,7 @@ class WildCardsPin {
      * @param {number} highlow - write high = 1 or low = 0 to pin
      */
     digitalWrite (highlow) {
-        var msg = JSON.stringify({"method": "digital_write", "params": [this._pinNum, highlow]});
+        var msg = JSON.stringify({"method": "digital_pin_write", "params": [this._pinNum, highlow]});
         console.log(msg);
         this._parent._sendmessage(msg);
     }
@@ -888,7 +890,7 @@ class WildCards {
  */
 
         //these two don't represent any real wildmodule or wildconnector, it merely exists at the board level so calls to connector.wildmodule.etc... from the pin level have a place to go
-        //DH 4/17/2018 we mayjust remove these two lines if we don't access pins directly from this level. WildButton, WildLED, WildConnector, etc. can each route calls to a (dead) wildmodule object
+        //DH 4/17/2018 we may just remove these two lines if we don't access pins directly from this level. WildButton, WildLED, WildConnector, etc. can each route calls to a (dead) wildmodule object
         //this._internal_connector__does_not_exist = new WildConnector(wcConnector.A, 1, 2);
         //this._wildModule = new WildModule(this._internal_connector__does_not_exist);
 
@@ -1434,7 +1436,7 @@ class Scratch3WildCardsBlocks {
                 },
                 {
                     opcode: 'isDigitalHigh',
-                    text: '[DIGITAL_SENSOR] [CONNECTOR_ID]',
+                    text: '[DIGITAL_SENSOR] on [CONNECTOR_ID]',
                     blockType: BlockType.BOOLEAN,
                     arguments: {
                         DIGITAL_SENSOR: {
@@ -1451,7 +1453,7 @@ class Scratch3WildCardsBlocks {
                 },
                 {
                     opcode: 'whenDigitalHigh',
-                    text: 'when [DIGITAL_SENSOR] [CONNECTOR_ID]',
+                    text: 'when [DIGITAL_SENSOR] on [CONNECTOR_ID]',
                     blockType: BlockType.HAT,
                     arguments: {
                       DIGITAL_SENSOR: {
@@ -1468,30 +1470,31 @@ class Scratch3WildCardsBlocks {
                 },
                 {
                     opcode: 'setServoPosition',
-                    text: 'set servo to [DIRECTION]: [CONNECTOR_ID]',
+                    text: 'Move servo to [PERCENTAGE] percent on [CONNECTOR_ID]',
                     blockType: BlockType.COMMAND,
                     arguments: {
                         CONNECTOR_ID: {
                             type: ArgumentType.STRING,
-                            menu: 'pwm_connectorSelect',
+                            menu: 'connectorSelect',
                             defaultValue: wcConnector.A
                         },
-                        DIRECTION: {
+                        PERCENTAGE: {
                           type: ArgumentType.NUMBER,
-                          defaultValue: 90      //(maybe) TODO set servo limits to inputs; DH: value validation implemented in setServoPosition at least
+                          defaultValue: 50      //(maybe) TODO set servo limits to inputs; DH: value validation implemented in setServoPosition at least
                         }
                     }
                 },
                 {
                     opcode: 'buzzerOnOff',
-                    text: '[CONNECTOR_ID] buzz at [FREQUENCY]Hz for [DURATION]ms',
+                    text: 'Buzz at [FREQUENCY]Hz for [DURATION]ms',
+                    //text: '[CONNECTOR_ID] buzz at [FREQUENCY]Hz for [DURATION]ms',					
                     blockType: BlockType.COMMAND,
                     arguments: {
-                        CONNECTOR_ID: {
+/*                         CONNECTOR_ID: {
                             type: ArgumentType.STRING,
                             menu: 'connectorOrOnboardSelect',
                             defaultValue: wcConnector.Onboard
-                        },
+                        }, */
                         FREQUENCY: {
                           type: ArgumentType.NUMBER,
                           defaultValue: 440
@@ -1504,7 +1507,7 @@ class Scratch3WildCardsBlocks {
                 },
                 {
                     opcode: 'getKnobPosition',
-                    text: 'knob position: [CONNECTOR_ID]',
+                    text: 'knob position on [CONNECTOR_ID]',
                     blockType: BlockType.REPORTER,
                     arguments: {
                         CONNECTOR_ID: {
@@ -1516,7 +1519,7 @@ class Scratch3WildCardsBlocks {
                 },
                 {
                     opcode: 'getTemperature',
-                    text: 'temperature: [CONNECTOR_ID] [TEMP_TYPE]',
+                    text: 'temperature on [CONNECTOR_ID] [TEMP_TYPE]',
                     blockType: BlockType.REPORTER,
                     arguments: {
                         CONNECTOR_ID: {
@@ -1568,7 +1571,7 @@ class Scratch3WildCardsBlocks {
         }
         console.log("creating wildcards device")
         this._device = new WildCards(tempsocket);
-///TODO:    Get DeviceManager stuff working
+//TODO:    Get DeviceManager stuff working
 
         // const deviceManager = this.deviceManager;
         // deviceManager._serverURL = "ws://localhost:9000";
@@ -1734,39 +1737,41 @@ class Scratch3WildCardsBlocks {
     }
 
     /**
-     * Set the connected servo to the specified direction
+     * Set the connected servo to the specified direction (percentage)
      * @param {object} args - the block's arguments.
      * @property {wcConnector} CONNECTOR_ID- the connector that the servo is connected to.
-     * @property {number} DIRECTION - the direction to set the servo to.
+     * @property {number} PERCENTAGE - the direction to set the servo to.
     */
     setServoPosition (args) {
-        var direction  = parseInt(args.DIRECTION) + 4  //offset by 4 to avoid servo jitter on edge values, parse for Int in case leading/trailing space character is present
-        const maxpulse = 255  //maxpulse/minpulse should be changed also in pin.servo_config method
-        const minpulse = 4
+        const maxpulse = 2400  //maxpulse/minpulse should be changed also in pin.servo_config method
+        const minpulse = 600
+        var percentage  = parseInt(args.PERCENTAGE) //parse for Int in case leading/trailing space character is present
+
 
         // TODO: direction does not seem to be correct, ie input number to analogWrite differs from selection
-        if (direction < minpulse) {
-            direction = minpulse
+        if (percentage < 0) {
+            percentage = 0
         }
 
-        if (direction > maxpulse) {
-            direction = maxpulse
+        if (percentage > 100) {
+            percentage = 100
         }
-
+        percentage = (percentage/100)*(maxpulse-minpulse)+minpulse
         var pin = this._device.getConnector(args.CONNECTOR_ID).getPin(wcPin.pin1)
         pin.setPinMode(servoMode);
-        pin.analogWrite(direction);
+        pin.analogWrite(percentage);
     }
 
     /**
      * Turn a WildModules buzzer on for a specified duration at a specified frequency
      * @param {object} args - the block's arguments.
      * @property {wcConnector} CONNECTOR_ID- the connector that the buzzer is connected to.
-     * @property {number} FREQUENCY- the pitch to play the buzzer at in Hz
-     * @property {number} DURATION- how long to play the buzzer in ms. Set to zero to turn off immediately.
+     * @property {number} FREQUENCY- the pitch to play the buzzer at in Hz. Valid range is between 31Hz and 16384Hz
+     * @property {number} DURATION- how long to play the buzzer in ms. Set to zero to turn off immediately. Maximum recognized value is 16384ms.
 	 */
     buzzerOnOff (args) {
-      var pin = this._device.getConnector(args.CONNECTOR_ID).getPin(wcPin.pin1)
+      //var pin = this._device.getConnector(args.CONNECTOR_ID).getPin(wcPin.pin1)
+      var pin = this._device.getConnector(wcConnector.Onboard).getPin(wcPin.pin1)
       pin.setPinMode(toneMode);
       if (args.DURATION <= 0) {
         //shut off the tone
