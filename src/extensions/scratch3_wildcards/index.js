@@ -518,7 +518,7 @@ class WildCardsPin {
     /**
      * Configure a Wildcards connector for a servo
      * Pymata uses this instead of set_pin_mode for servos
-     * @param {int} min_pulse - the min pulse setting for the servo, default to 600, as this is tested at the factorys (note: was 544)
+     * @param {int} min_pulse - the min pulse setting for the servo, default to 600, as this is tested at the factory (note: was 544)
      * @param {int} max_pulse - the max pulse setting for the servo, default to 2400
      */
     configureServo (min_pulse = 600, max_pulse = 2400) {
