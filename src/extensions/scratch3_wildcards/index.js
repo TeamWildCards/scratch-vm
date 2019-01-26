@@ -674,7 +674,7 @@ class WildLED {
     }
 
     get isOn () {
-        return (this._pin.state == 1) ? true : false;      //LED state = 1 means LED is on
+        return (this._pin.state == 0) ? false : true;      //LED state = 1 means LED is on
     }
 
     get isOff () {
@@ -689,6 +689,11 @@ class WildLED {
     setLED (onoff) {
         this._pin.state = (onoff == wcOnOff.ON) ? this._pin.state = 1 : this._pin.state = 0;
         this._pin.digitalWrite(this._pin.state);
+    }
+	
+	setLEDpwm (value) {
+        this._pin.state = value;
+        this._pin.analogWrite(value);
     }
     /**
      * Set the WildLED (pin) value
@@ -1435,8 +1440,19 @@ class Scratch3WildCardsBlocks {
                     }
                 },
                 {
+                    opcode: 'setLED1Brightness',
+                    text: 'set LED1 to [PERCENTAGE]%',
+                    blockType: BlockType.COMMAND,
+                    arguments: {
+                        PERCENTAGE: {
+                          type: ArgumentType.NUMBER,
+                          defaultValue: 50
+                        }
+                    }
+                },				
+                {
                     opcode: 'isDigitalHigh',
-                    text: '[DIGITAL_SENSOR] on [CONNECTOR_ID]',
+                    text: '[DIGITAL_SENSOR]: [CONNECTOR_ID]',
                     blockType: BlockType.BOOLEAN,
                     arguments: {
                         DIGITAL_SENSOR: {
@@ -1453,7 +1469,7 @@ class Scratch3WildCardsBlocks {
                 },
                 {
                     opcode: 'whenDigitalHigh',
-                    text: 'when [DIGITAL_SENSOR] on [CONNECTOR_ID]',
+                    text: 'when [DIGITAL_SENSOR]: [CONNECTOR_ID]',
                     blockType: BlockType.HAT,
                     arguments: {
                       DIGITAL_SENSOR: {
@@ -1470,7 +1486,7 @@ class Scratch3WildCardsBlocks {
                 },
                 {
                     opcode: 'setServoPosition',
-                    text: 'Move servo to [PERCENTAGE] percent on [CONNECTOR_ID]',
+                    text: 'set servo to [PERCENTAGE]%: [CONNECTOR_ID]',
                     blockType: BlockType.COMMAND,
                     arguments: {
                         CONNECTOR_ID: {
@@ -1480,13 +1496,30 @@ class Scratch3WildCardsBlocks {
                         },
                         PERCENTAGE: {
                           type: ArgumentType.NUMBER,
-                          defaultValue: 50      //(maybe) TODO set servo limits to inputs; DH: value validation implemented in setServoPosition at least
+                          defaultValue: 50
                         }
                     }
                 },
                 {
+                    opcode: 'vibrateOnOff',
+                    text: 'set vibration [CONNECTOR_ID] [ON_OFF]',
+                    blockType: BlockType.COMMAND,
+                    arguments: {
+                        CONNECTOR_ID: {
+                            type: ArgumentType.STRING,
+                            menu: 'connectorSelect',
+                            defaultValue: wcConnector.A
+                        },
+                        ON_OFF: {
+                            type: ArgumentType.STRING,
+                            menu: 'onOff',
+                            defaultValue: 'On'
+                        }
+                    }
+                },				
+                {
                     opcode: 'buzzerOnOff',
-                    text: 'Buzz at [FREQUENCY]Hz for [DURATION]ms',
+                    text: 'buzz at [FREQUENCY]Hz for [DURATION]ms',
                     //text: '[CONNECTOR_ID] buzz at [FREQUENCY]Hz for [DURATION]ms',					
                     blockType: BlockType.COMMAND,
                     arguments: {
@@ -1507,7 +1540,7 @@ class Scratch3WildCardsBlocks {
                 },
                 {
                     opcode: 'getKnobPosition',
-                    text: 'knob position on [CONNECTOR_ID]',
+                    text: 'knob position: [CONNECTOR_ID]',
                     blockType: BlockType.REPORTER,
                     arguments: {
                         CONNECTOR_ID: {
@@ -1516,24 +1549,24 @@ class Scratch3WildCardsBlocks {
                             defaultValue: wcConnector.A
                         }
                     }
-                },
-                {
-                    opcode: 'getTemperature',
-                    text: 'temperature on [CONNECTOR_ID] [TEMP_TYPE]',
-                    blockType: BlockType.REPORTER,
-                    arguments: {
-                        CONNECTOR_ID: {
-                            type: ArgumentType.STRING,
-                            menu: 'connectorSelect',
-                            defaultValue: wcConnector.A
-                        },
-                        TEMP_TYPE: {
-                            type: ArgumentType.STRING,
-                            menu: 'tempSelect',
-                            defaultValue: "Fahrenheit"
-                        }
-                    }
-                }
+                }//,
+                //{
+                //    opcode: 'getTemperature',
+                //    text: 'temperature: [CONNECTOR_ID] [TEMP_TYPE]',
+                //    blockType: BlockType.REPORTER,
+                //    arguments: {
+                //        CONNECTOR_ID: {
+                //            type: ArgumentType.STRING,
+                //            menu: 'connectorSelect',
+                //            defaultValue: wcConnector.A
+                //        },
+                //        TEMP_TYPE: {
+                //            type: ArgumentType.STRING,
+                //            menu: 'tempSelect',
+                //            defaultValue: "Fahrenheit"
+                //        }
+                //    }
+                //}
             ],
             menus: {
                 buttonSelect:
@@ -1723,16 +1756,18 @@ class Scratch3WildCardsBlocks {
     getKnobPosition(args) {
         var pin = this._device.getConnector(args.CONNECTOR_ID).getPin(wcPin.pin2);
         pin.setPinMode(analogMode);   // Setting to analogMode automatically triggers analog readbacks
-        console.log(pin.state*180/1024)
-        return pin.state*180/1024;
+        console.log(pin.state*100/1024)
+        return pin.state*100/1024;
     }
     /**
      * Set the WildCards LEDs on or off
      * @param {object} args - the block's arguments.
      * @property {wcConnector} LED_ID- the connector to test.
-     * @property {string} ON_OFF - the connector to test.
+     * @property {string} ON_OFF - whether to turn the LED on or off.
     */
     ledOnOff (args) {
+		var pin = this._device.getLED(wcLED.LED_1).pin
+        pin.setPinMode(outputMode);
         this._device.getLED(args.LED_ID).setLED(args.ON_OFF);
     }
 
@@ -1746,9 +1781,8 @@ class Scratch3WildCardsBlocks {
         const maxpulse = 2400  //maxpulse/minpulse should be changed also in pin.servo_config method
         const minpulse = 600
         var percentage  = parseInt(args.PERCENTAGE) //parse for Int in case leading/trailing space character is present
+		var milliseconds = 1500
 
-
-        // TODO: direction does not seem to be correct, ie input number to analogWrite differs from selection
         if (percentage < 0) {
             percentage = 0
         }
@@ -1756,12 +1790,39 @@ class Scratch3WildCardsBlocks {
         if (percentage > 100) {
             percentage = 100
         }
-        percentage = (percentage/100)*(maxpulse-minpulse)+minpulse
+        milliseconds = (percentage/100)*(maxpulse-minpulse)+minpulse
         var pin = this._device.getConnector(args.CONNECTOR_ID).getPin(wcPin.pin1)
         pin.setPinMode(servoMode);
-        pin.analogWrite(percentage);
+        pin.analogWrite(milliseconds);
     }
 
+    /**
+     * Set LED1 to a specified brightness (percentage)
+     * @param {object} args - the block's arguments.
+     * @property {number} PERCENTAGE - the brightness to set LED1.
+    */
+    setLED1Brightness (args) {
+        const maxbright = 255  //maxpulse/minpulse should be changed also in pin.servo_config method
+        const minbright = 0
+        var percentage  = parseInt(args.PERCENTAGE) //parse for Int in case leading/trailing space character is present
+		var pwmValue = 0
+		
+		
+        if (percentage < 0) {
+            percentage = 0
+        }
+
+        if (percentage > 100) {
+            percentage = 100
+        }
+        pwmValue = (percentage/100)*(maxbright-minbright)+minbright
+        var pin = this._device.getLED(wcLED.LED_1).pin
+        pin.setPinMode(pwmMode);
+        pin.analogWrite(pwmValue);
+		this._device.getLED(wcLED.LED_1).setLEDpwm(pwmValue);
+    }
+
+	
     /**
      * Turn a WildModules buzzer on for a specified duration at a specified frequency
      * @param {object} args - the block's arguments.
@@ -1782,6 +1843,21 @@ class Scratch3WildCardsBlocks {
 		pin.playTone("TONE_TONE", args.FREQUENCY, args.DURATION)
 	  }
     }
+	
+	
+    /**
+     * Turn a WildModules vibration motor on or off
+     * @param {object} args - the block's arguments.
+     * @property {wcConnector} CONNECTOR_ID- the connector that the buzzer is connected to.
+     * @property {string} ON_OFF - whether to turn the vibration motor on or off.	 
+	 */
+    vibrateOnOff (args) {
+	  var pin = this._device.getConnector(args.CONNECTOR_ID).getPin(wcPin.pin1);
+	  var onoff = args.ON_OFF;
+	  pin.setPinMode(outputMode);
+      pin.state = (onoff == wcOnOff.ON) ? this._pin.state = 1 : this._pin.state = 0;
+      pin.digitalWrite(this._pin.state);
+    }	
 }
 
 
