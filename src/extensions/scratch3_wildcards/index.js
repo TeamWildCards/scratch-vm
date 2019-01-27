@@ -587,7 +587,7 @@ class WildCardsPin {
      * @param {number} value - state of pin, 1 = high 0 = low
      */
     digital_message_reply (value) {
-        this.state = value;
+        this._state = value;
         ////////////////////////////////////////////////////////////Why was this commented out?
         //this._parent.wildModule().digital_message_reply(this._pinNum, value);
     }
@@ -629,7 +629,7 @@ class WildButton {
      * @param {int} value - the value to set the pin
      */
     set state (value) {
-        this._pin._state = value;
+        this._pin.state = value;
     }
 
     /**
@@ -637,7 +637,7 @@ class WildButton {
      * @return {int} value - the value the pin is set to
      */
     get state () {
-        return this._pin._state;
+        return this._pin.state;
     }
 
 
@@ -687,7 +687,7 @@ class WildLED {
      * @param {wcOnOff} onoff - whether or not to turn on this LED
      */
     setLED (onoff) {
-        this._pin.state = (onoff == wcOnOff.ON) ? this._pin.state = 1 : this._pin.state = 0;
+        this._pin.state = (onoff == wcOnOff.ON) ? 1 : 0;
         this._pin.digitalWrite(this._pin.state);
     }
 	
@@ -700,7 +700,7 @@ class WildLED {
      * @param {int} value - the value to set the pin
      */
     set state (value) {
-        this._pin._state = value;
+        this._pin.state = value;
     }
 
     /**
@@ -708,7 +708,7 @@ class WildLED {
      * @return {int} value - the value the pin is set to
      */
     get state () {
-        return this._pin._state;
+        return this._pin.state;
     }
 
 
@@ -1766,9 +1766,9 @@ class Scratch3WildCardsBlocks {
      * @property {string} ON_OFF - whether to turn the LED on or off.
     */
     ledOnOff (args) {
-		var pin = this._device.getLED(wcLED.LED_1).pin
-        pin.setPinMode(outputMode);
-        this._device.getLED(args.LED_ID).setLED(args.ON_OFF);
+		var LED = this._device.getLED(args.LED_ID)
+		LED.pin.setPinMode(outputMode);
+        LED.setLED(args.ON_OFF);
     }
 
     /**
@@ -1855,8 +1855,8 @@ class Scratch3WildCardsBlocks {
 	  var pin = this._device.getConnector(args.CONNECTOR_ID).getPin(wcPin.pin1);
 	  var onoff = args.ON_OFF;
 	  pin.setPinMode(outputMode);
-      pin.state = (onoff == wcOnOff.ON) ? this._pin.state = 1 : this._pin.state = 0;
-      pin.digitalWrite(this._pin.state);
+      pin.state = (onoff == wcOnOff.ON) ? 1 : 0;
+      pin.digitalWrite(pin.state);
     }	
 }
 
