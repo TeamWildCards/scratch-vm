@@ -931,16 +931,14 @@ class Wildcards {
 		this._onboardbuzzer = new WildConnector(this, wcConnector.Onboard, 9, 9);  //2nd pin won't be used, can be anything
 		
         this._socket.onmessage = function (message) {
-            //console.log('got message' + message.data);
-            //console.log(message.data);
+            console.log('got message' + message.data);
+            console.log(message.data);
             var msg = JSON.parse(message.data);
             var method = msg["method"];
-            //console.log(method);
+            console.log(method);
             var params = msg["params"];
-            //console.log(params);
+            console.log(params);
 
-            //var out = data;
-            //console.log(out)
             switch (method) {
                 case "analog_message_reply":
                 {
@@ -976,14 +974,13 @@ class Wildcards {
 
                 case "digital_message_reply":
                 {
-                    //console.log('digital message');
+                    console.log('digital message');
 
                     pin = params[0];
-                    ////console.log(a)
                     out = params[1];
-                    //console.log('digital message');
-                    //console.log('pin: ' + pin);
-                    //console.log('value =' + out);
+                    console.log('digital message');
+                    console.log('pin: ' + pin);
+                    console.log('value =' + out);
                     switch (pin) {
 
                         case 2:  //maps to Arduino pin 2
