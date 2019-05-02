@@ -39,18 +39,18 @@ var noModeSet = "126";
  */
 //const io = require('socket.io-client/dist/socket.io');
 // connect to the server
+
 var ipAddress = "localhost";
 var ipPort = "9000";
+var mysocket;
 
-var tempsocket;
-
-function connect() {
+function socketconnect() {
     return new Promise(function(resolve, reject) {
-        tempsocket = new WebSocket('ws://' + ipAddress + ':' + ipPort);
-        tempsocket.onopen = function() {
-            resolve(tempsocket);
+        mysocket = new WebSocket('ws://' + ipAddress + ':' + ipPort);
+        mysocket.onopen = function() {
+            resolve(mysocket);
         };
-        tempsocket.onerror = function(err) {
+        mysocket.onerror = function(err) {
             reject(err);
         };
 
@@ -940,7 +940,7 @@ class Wildcards {
         this._connectorC = new WildConnector(this, wcConnector.C, 5, 14);
         this._connectorD = new WildConnector(this, wcConnector.D, 10, 15);
 
-		    this._onboardbuzzer = new WildConnector(this, wcConnector.Onboard, 9, 9);  //2nd pin won't be used, can be anything
+		this._onboardbuzzer = new WildConnector(this, wcConnector.Onboard, 9, 9);  //2nd pin won't be used, can be anything
 
         this._socket.onmessage = function (message) {
             console.log('got message' + message.data);
@@ -1364,7 +1364,6 @@ class Wildcards {
      * @private
      */
     _sendmessage (message) {
-
         this._socket.send(message);
 
     }
@@ -1393,14 +1392,14 @@ class Scratch3WildcardsBlocks {
          */
         this.runtime = runtime;
 
-        this.device = null;
-        /**
-         * A new Device Manager that points to localhost:9000.
-         * @type {DeviceManager}
-         */
         //this.deviceManager = new DeviceManager();
-        this.connect();
+        //this.connect();
+        console.log("creating wildcards device")
+        //window.mysocket.addEventListener('open', this.extensionManager.loadExtensionIdSync('wildcards'));
+        socketconnect().then((socket) => {this._device = new Wildcards(socket);});
+
     }
+
 
     /**
      * @returns {object} metadata for this extension and its blocks.
@@ -1626,18 +1625,7 @@ class Scratch3WildcardsBlocks {
             return;
         }
         console.log("creating wildcards device")
-        // Connect to websocket then create the wildcards device after its opened.
-        connect().then(function(tempsocket) {
-            console.log("server is ready here", tempsocket);
-            this._device = new Wildcards(tempsocket);
-        }).catch(function(err) {
-            console.log("error here", err);
-        });
-        //  tempsocket.addEventListener('open', function (event) {
-        //    console.log('Hello Server!');
-        //    this._device = new Wildcards(tempsocket);
-        //  });
-
+        this._device = new Wildcards(tempsocket);
 //TODO:    Get DeviceManager stuff working
 
         // const deviceManager = this.deviceManager;
@@ -1815,7 +1803,7 @@ class Scratch3WildcardsBlocks {
         const maxpulse = 2400  //maxpulse/minpulse should be changed also in pin.servo_config method
         const minpulse = 600
         var percentage  = parseInt(args.PERCENTAGE) //parse for Int in case leading/trailing space character is present
-		var milliseconds = 1500
+		    var milliseconds = 1500
 
         if (percentage < 0) {
             percentage = 0
