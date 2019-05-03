@@ -2,6 +2,10 @@ const ArgumentType = require('../../extension-support/argument-type');
 const BlockType = require('../../extension-support/block-type');
 const color = require('../../util/color');
 const log = require('../../util/log');
+const Swal = require('./sweetalert2.all.min.js');
+
+
+
 //const DeviceManager = require('../../io/deviceManager');
 /**
  * Icon svg to be displayed at the left edge of each extension block, encoded as a data URI.
@@ -51,8 +55,31 @@ function socketconnect() {
             resolve(mysocket);
         };
         mysocket.onerror = function(err) {
+          Swal.fire({
+            title: '<b>Wildcards Link not connected!</b>',
+            html:
+            'Plug your board. Launch Wildcards Link. Reload the page.' +
+            'You can use Wildcards GUI without the board by clicking OK.',
+            type: 'error',
+            confirmButtonText: 'Ok',
+            allowOutsideClick: false,
+            showCancelButton: true,
+            cancelButtonText: 'Reload',
+            cancelButtonColor: '#3085d6',
+            focusCancel: true
+            }).then(
+            function (result) {
+              if (result.dismiss === 'cancel') {
+                location.assign('.')
+              }
+            }
+          );
             reject(err);
         };
+
+        mysocket.onclose = function() {
+
+        }
 
     });
 }
@@ -904,6 +931,19 @@ class Wildcards {
          */
         this._socket = socket;
 
+        // Connection closed listener
+        this._socket.addEventListener('close', function (event) {
+          Swal.fire({
+            title: '<b>Wildcards Link disconnected! </b>',
+            html:
+            'Save your work. Re-Launch Wildcards Link. Reload the page.',
+            type: 'warning',
+            confirmButtonText: 'Ok',
+            allowOutsideClick: false,
+
+          });
+        });
+
         //***** Create all the WC Pins ******//
         console.log("creating wildcards pins")
 /*
@@ -1364,6 +1404,7 @@ class Wildcards {
      * @private
      */
     _sendmessage (message) {
+
         this._socket.send(message);
 
     }
@@ -1395,9 +1436,7 @@ class Scratch3WildcardsBlocks {
         //this.deviceManager = new DeviceManager();
         //this.connect();
         console.log("creating wildcards device")
-        //window.mysocket.addEventListener('open', this.extensionManager.loadExtensionIdSync('wildcards'));
         socketconnect().then((socket) => {this._device = new Wildcards(socket);});
-
     }
 
 
