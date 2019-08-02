@@ -151,8 +151,9 @@ class VirtualMachine extends EventEmitter {
 
         this.extensionManager = new ExtensionManager(this.runtime);
 
-        //Initial Wildcards extension upon Scratch load
-        this.extensionManager.loadExtensionIdSync('wildcards'); 
+        //Initial Wildcards extension upon page load
+        this.extensionManager.loadExtensionIdSync('wildcards');
+
 
         // Load core extensions
         for (const id of CORE_EXTENSIONS) {

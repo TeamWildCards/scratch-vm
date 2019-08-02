@@ -918,7 +918,6 @@ class Wildcards {
         return 'wildcards';
     }
 
-
     /**
      * Construct a Wildcards communication object.
      * @param {Socket} socket - the socket for a Wildcards device, as provided by a Device Manager client.
@@ -975,12 +974,12 @@ class Wildcards {
 
 
         //Map Arduino digital pins to connectors
-        this._connectorA = new WildConnector(this, wcConnector.A, 3, 17);
+        this._connectorA = new WildConnector(this, wcConnector.A, 9, 17);
         this._connectorB = new WildConnector(this, wcConnector.B, 19, 18);
         this._connectorC = new WildConnector(this, wcConnector.C, 5, 14);
         this._connectorD = new WildConnector(this, wcConnector.D, 10, 15);
 
-		this._onboardbuzzer = new WildConnector(this, wcConnector.Onboard, 9, 9);  //2nd pin won't be used, can be anything
+		this._onboardbuzzer = new WildConnector(this, wcConnector.Onboard, 3, 3);  //2nd pin won't be used, can be anything
 
         this._socket.onmessage = function (message) {
             console.log('got message' + message.data);
@@ -1039,7 +1038,7 @@ class Wildcards {
                             //this digital input is not connected for Wildcards
                             break;
                         case 3:  //maps to Arduino pin 3, and Wildcards connector A pin 1
-                            this._connectorA._pin1.digital_message_reply(out);
+
                             //this._pin3.state = out;
                             break;
                         case 4:  //maps to Arduino pin 4, and Wildcards button1
@@ -1063,6 +1062,7 @@ class Wildcards {
                         //    document.getElementById("ip8").value = out;
                             break;
                         case 9:  //maps to Arduino pin 9
+                            this._connectorA._pin1.digital_message_reply(out);
                         //    document.getElementById("ip9").value = out;
                             break;
                         case 10:  //maps to Arduino pin 10, and Wildcards connector D pin 1

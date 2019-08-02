@@ -4,7 +4,7 @@ const JSONRPC = require('./jsonrpc');
 class JSONRPCWebSocket extends JSONRPC {
     constructor (webSocket) {
         super();
-
+        console.log("Pooper scooper 4");
         this._ws = webSocket;
         this._ws.onmessage = e => this._onSocketMessage(e);
         this._ws.onopen = e => this._onSocketOpen(e);

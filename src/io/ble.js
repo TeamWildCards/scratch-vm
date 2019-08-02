@@ -15,6 +15,7 @@ class BLE extends JSONRPCWebSocket {
      */
     constructor (runtime, extensionId, peripheralOptions, connectCallback, disconnectCallback = null) {
         const ws = new WebSocket(ScratchLinkWebSocket);
+        console.log("Pooper scooper 1");
         super(ws);
 
         this._ws = ws;
@@ -80,7 +81,7 @@ class BLE extends JSONRPCWebSocket {
         if (this._connected) {
             this._connected = false;
         }
-        
+
         if (this._discoverTimeoutID) {
             window.clearTimeout(this._discoverTimeoutID);
         }

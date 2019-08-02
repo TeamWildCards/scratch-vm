@@ -17,7 +17,7 @@ class BT extends JSONRPCWebSocket {
     constructor (runtime, extensionId, peripheralOptions, connectCallback, disconnectCallback = null, messageCallback) {
         const ws = new WebSocket(ScratchLinkWebSocket);
         super(ws);
-
+        console.log("Pooper scooper 2");
         this._ws = ws;
         this._ws.onopen = this.requestPeripheral.bind(this); // only call request peripheral after socket opens
         this._ws.onerror = this._handleRequestError.bind(this, 'ws onerror');
