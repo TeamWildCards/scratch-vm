@@ -153,6 +153,9 @@ class VirtualMachine extends EventEmitter {
         });
 
         this.extensionManager = new ExtensionManager(this.runtime);
+        
+        //Initial Wildcards extension upon page load
+        this.extensionManager.loadExtensionIdSync('wildcards');
 
         // Load core extensions
         for (const id of CORE_EXTENSIONS) {
@@ -484,7 +487,7 @@ class VirtualMachine extends EventEmitter {
                 const sb3 = require('./serialization/sb3');
                 return sb3.deserialize(projectJSON, runtime, zip);
             }
-            return Promise.reject('Unable to verify Scratch Project version.');
+            return Promise.reject('Unable to verify Wildcards Project version.');
         };
         return deserializePromise()
             .then(({targets, extensions}) =>
