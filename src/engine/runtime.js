@@ -17,6 +17,7 @@ const StageLayering = require('./stage-layering');
 const Variable = require('./variable');
 const xmlEscape = require('../util/xml-escape');
 const ScratchLinkWebSocket = require('../util/scratch-link-websocket');
+const WildcardsLinkWebSocket = require('../util/wildcards-link-websocket');
 
 // Virtual I/O devices.
 const Clock = require('../io/clock');
@@ -1348,6 +1349,18 @@ class Runtime extends EventEmitter {
         return factory(type);
     }
 
+
+    /**
+     * Get a Wildcards link socket.
+     * @param {string} type Firmata
+     * @returns {WildcardsLinkSocket} The Wildcards link socket.
+     */
+    getWildcardsLinkSocket (type) {
+        const factory = this._wildcardsLinkSocketFactory || this._defaultWildcardsLinkSocketFactory;
+        return factory(type);
+    }
+
+                                            
     /**
      * Configure how ScratchLink sockets are created. Factory must consume a "type" parameter
      * either BT or BLE.
@@ -1358,6 +1371,15 @@ class Runtime extends EventEmitter {
     }
 
     /**
+      * Configure how WildcardsLink sockets are created. Factory must consume a "type" parameter
+      * of Firmata.
+      * @param {Function} factory The new factory for creating WildcardsLink sockets.
+      */
+    configureWildcardsLinkSocketFactory (factory) {
+        this._wildcardsLinkSocketFactory = factory;
+    }
+
+    /**
      * The default scratch link socket creator, using websockets to the installed device manager.
      * @param {string} type Either BLE or BT
      * @returns {ScratchLinkSocket} The new scratch link socket (a WebSocket object)
@@ -1365,7 +1387,17 @@ class Runtime extends EventEmitter {
     _defaultScratchLinkSocketFactory (type) {
         return new ScratchLinkWebSocket(type);
     }
+                                            
+    /**
+     * The default Wildcards link socket creator, using websockets to WildcardsLink.
+     * @param {string} type Firmata
+     * @returns {WildcardsLinkSocket} The new Wildcards link socket (a WebSocket object)
+     */
+    _defaultWildcardsLinkSocketFactory (type) {
+        return new WildcardsLinkWebSocket(type);
+    }
 
+                                            
     /**
      * Register an extension that communications with a hardware peripheral by id,
      * to have access to it and its peripheral functions in the future.
